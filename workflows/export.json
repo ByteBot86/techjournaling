@@ -1,0 +1,252 @@
+{
+  "name": "[TJ] export",
+  "nodes": [
+    {
+      "id": "tj-ex-001",
+      "name": "Workflow Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "parameters": {}
+    },
+    {
+      "id": "tj-ex-002",
+      "name": "Get Journals",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [440, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "journal_entries",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ex-003",
+      "name": "Collect Journals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const userId = $('Workflow Input').first().json.user_id;\nconst chatId = $('Workflow Input').first().json.chat_id;\nconst journals = $input.all()\n  .map(i => ({ text: i.json.text, created_at: i.json.created_at }))\n  .filter(j => j.text);\nreturn [{ json: { user_id: userId, chat_id: chatId, journals } }];"
+      }
+    },
+    {
+      "id": "tj-ex-004",
+      "name": "Get Profile",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [920, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "onboarding_profile",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ex-005",
+      "name": "Collect Profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 300],
+      "parameters": {
+        "jsCode": "const prev = $('Collect Journals').first().json;\nconst p = $input.first().json;\nreturn [{ json: {\n  user_id: prev.user_id,\n  chat_id: prev.chat_id,\n  journals: prev.journals,\n  profile: {\n    gender: p.gender || null,\n    values_raw: p.values_raw || null,\n    goal_smart: p.goal_smart || null,\n    created_at: p.created_at || null\n  }\n} }];"
+      }
+    },
+    {
+      "id": "tj-ex-006",
+      "name": "Get Amphitheater",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1400, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "amphitheater",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ex-007",
+      "name": "Collect Amphitheater",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prev = $('Collect Profile').first().json;\nconst amphitheater = $input.all()\n  .map(i => ({ text: i.json.text, metadata: i.json.metadata }))\n  .filter(i => i.text);\nreturn [{ json: { ...prev, amphitheater } }];"
+      }
+    },
+    {
+      "id": "tj-ex-008",
+      "name": "Get Condensations",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1880, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "weekly_condensations",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ex-009",
+      "name": "Collect Condensations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2120, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prev = $('Collect Amphitheater').first().json;\nconst condensations = $input.all()\n  .map(i => ({ text: i.json.text, created_at: i.json.created_at }))\n  .filter(i => i.text);\nreturn [{ json: { ...prev, condensations } }];"
+      }
+    },
+    {
+      "id": "tj-ex-010",
+      "name": "Get Weekly Plans",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2360, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "weekly_plans",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ex-011",
+      "name": "Build Export",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2600, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prev = $('Collect Condensations').first().json;\nconst plans = $input.all()\n  .map(i => ({ text: i.json.text, created_at: i.json.created_at }))\n  .filter(i => i.text);\nconst exportObj = {\n  exported_at: new Date().toISOString(),\n  user_id: prev.user_id,\n  profile: prev.profile,\n  amphitheater: prev.amphitheater,\n  journal_entries: prev.journals,\n  weekly_condensations: prev.condensations,\n  weekly_plans: plans\n};\nconst jsonString = JSON.stringify(exportObj, null, 2);\nconst filename = `tech_diary_export_${new Date().toISOString().split('T')[0]}.json`;\nreturn [{ json: { chat_id: prev.chat_id, json_string: jsonString, filename } }];"
+      }
+    },
+    {
+      "id": "tj-ex-012",
+      "name": "Create Binary File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2840, 300],
+      "parameters": {
+        "jsCode": "const buffer = Buffer.from($json.json_string, 'utf8');\nconst binaryData = await this.helpers.prepareBinaryData(buffer, $json.filename, 'application/json');\nreturn [{ json: { chat_id: $json.chat_id }, binary: { data: binaryData } }];"
+      }
+    },
+    {
+      "id": "tj-ex-013",
+      "name": "Send Document",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3080, 300],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendDocument",
+        "chatId": "={{ $json.chat_id }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {
+          "caption": "📦 Twój eksport danych z Tech Diary"
+        }
+      },
+      "credentials": {
+        "telegramApi": { "id": "", "name": "Telegram Tech Diary" }
+      }
+    }
+  ],
+  "connections": {
+    "Workflow Input": { "main": [[{ "node": "Get Journals", "type": "main", "index": 0 }]] },
+    "Get Journals": { "main": [[{ "node": "Collect Journals", "type": "main", "index": 0 }]] },
+    "Collect Journals": { "main": [[{ "node": "Get Profile", "type": "main", "index": 0 }]] },
+    "Get Profile": { "main": [[{ "node": "Collect Profile", "type": "main", "index": 0 }]] },
+    "Collect Profile": { "main": [[{ "node": "Get Amphitheater", "type": "main", "index": 0 }]] },
+    "Get Amphitheater": { "main": [[{ "node": "Collect Amphitheater", "type": "main", "index": 0 }]] },
+    "Collect Amphitheater": { "main": [[{ "node": "Get Condensations", "type": "main", "index": 0 }]] },
+    "Get Condensations": { "main": [[{ "node": "Collect Condensations", "type": "main", "index": 0 }]] },
+    "Collect Condensations": { "main": [[{ "node": "Get Weekly Plans", "type": "main", "index": 0 }]] },
+    "Get Weekly Plans": { "main": [[{ "node": "Build Export", "type": "main", "index": 0 }]] },
+    "Build Export": { "main": [[{ "node": "Create Binary File", "type": "main", "index": 0 }]] },
+    "Create Binary File": { "main": [[{ "node": "Send Document", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

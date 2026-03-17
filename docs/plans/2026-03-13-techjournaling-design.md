@@ -35,37 +35,41 @@ Aplikacja do rozwoju kariery dla osoby z technicznym wykształceniem. Codzienny 
 
 ## Model danych (Supabase)
 
+> **Schemat wektorowy:** tabele z embeddingami używają formatu n8n-native (`text`, `metadata jsonb`, `embedding vector`) dla natywnej integracji z n8n Supabase Vector Store node. Dane relacyjne (user_id, daty, kategorie) trzymane są w kolumnie `metadata`.
+
 ```sql
 users
-  id, telegram_id, created_at
+  id (uuid), telegram_id (bigint), user_login (text, unique), created_at
 
-onboarding_profile          -- jednorazowy, niezmienny
+onboarding_profile          -- jednorazowy, niezmienny (bez embeddingu)
   id, user_id, gender, values_raw, completed_at
 
-journal_entries             -- pamięć krótkoterminowa
-  id, user_id, content, embedding (vector), created_at
+onboarding_sessions         -- stan wieloturowego dialogu
+  user_id (PK), state, collected_data (jsonb), updated_at
 
-weekly_condensations        -- pamięć średnioterminowa
-  id, user_id, week_start, content, embedding (vector), created_at
+journal_entries             -- pamięć krótkoterminowa (n8n-native)
+  id, user_id (FK), text, metadata {week_start}, embedding (vector), created_at
 
-monthly_condensations       -- kondensacja miesięczna
-  id, user_id, month, content, embedding (vector), created_at
+weekly_condensations        -- pamięć średnioterminowa (n8n-native)
+  id, user_id (FK), text, metadata {week_start}, embedding (vector), created_at
 
-yearly_condensations        -- kondensacja roczna
-  id, user_id, year, content, embedding (vector), created_at
+monthly_condensations       -- kondensacja miesięczna (n8n-native)
+  id, user_id (FK), text, metadata {month}, embedding (vector), created_at
 
-amphitheater                -- pamięć długoterminowa (Amfiteatr wiedzy)
-  id, user_id, category (values|goal|insight|person|project),
-  content, embedding (vector), created_at,
-  superseded_at (null = aktualny rekord)
+yearly_condensations        -- kondensacja roczna (n8n-native)
+  id, user_id (FK), text, metadata {year}, embedding (vector), created_at
 
-weekly_plans                -- plany na następny tydzień
-  id, user_id, week_start, plan_content, embedding (vector), created_at
+amphitheater                -- pamięć długoterminowa (n8n-native)
+  id, user_id (FK), text, metadata {category, superseded_at}, embedding (vector), created_at
+  superseded_at=null → aktualny rekord
+
+weekly_plans                -- plany na następny tydzień (n8n-native)
+  id, user_id (FK), text, metadata {week_start}, embedding (vector), created_at
 ```
 
-**Zasada:** text + embedding w jednej tabeli (pgvector, prostsze zapytania n8n).
+**Zasada:** n8n Supabase Vector Store node wymaga kolumn `text + metadata + embedding`. `user_id` jako dedykowana kolumna z FK do `users` — filtrowanie przez `user_id = ?`, nie przez jsonb.
 
-**Historia celów:** nowy cel = nowy rekord w `amphitheater` + `superseded_at = now()` na poprzednim. Aktualny cel = `category = 'goal' AND superseded_at IS NULL`.
+**Historia celów:** nowy cel = nowy rekord w `amphitheater` + `metadata.superseded_at = now()` na poprzednim. Aktualny cel = `metadata->>'category' = 'goal' AND metadata->>'superseded_at' IS NULL`.
 
 ---
 

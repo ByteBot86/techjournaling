@@ -1,0 +1,455 @@
+{
+  "name": "[TJ] onboarding",
+  "nodes": [
+    {
+      "id": "tj-ob-001",
+      "name": "Workflow Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "parameters": {}
+    },
+    {
+      "id": "tj-ob-002",
+      "name": "Try Create User",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [440, 300],
+      "continueOnFail": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "users",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "telegram_id",
+              "fieldValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ob-003",
+      "name": "Get User",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Workflow Input').first().json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ob-004",
+      "name": "Get Profile",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [920, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "onboarding_profile",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ob-005",
+      "name": "Check State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const userItem = $('Get User').first().json;\nconst profileItems = $input.all();\nconst hasProfile = profileItems.length > 0 && profileItems[0].json.id != null;\nconst workflowInput = $('Workflow Input').first().json;\n\nreturn [{\n  json: {\n    user_id: userItem.id,\n    telegram_id: userItem.telegram_id,\n    chat_id: workflowInput.chat_id || workflowInput.telegram_id,\n    has_profile: hasProfile\n  }\n}];"
+      }
+    },
+    {
+      "id": "tj-ob-006",
+      "name": "Already Onboarded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1400, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "check-has-profile",
+              "leftValue": "={{ $json.has_profile }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "tj-ob-007",
+      "name": "Send Already Done",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1640, 100],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "Już masz profil! Możesz codziennie dodawać wpisy. Użyj /goal żeby zmienić cel zawodowy."
+      },
+      "credentials": {
+        "telegramApi": { "id": "", "name": "Telegram Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ob-008",
+      "name": "Get Session",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1640, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "onboarding_sessions",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ob-009",
+      "name": "Build Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const stateCtx = $('Check State').first().json;\nconst sessionItems = $input.all();\nconst hasSession = sessionItems.length > 0 && sessionItems[0].json.user_id != null;\nconst session = hasSession ? sessionItems[0].json : null;\nconst state = session ? session.state : 'new';\nconst collectedData = (session && session.collected_data) ? session.collected_data : {};\nconst conversation = collectedData.conversation || [];\nconst userMessage = $('Workflow Input').first().json.message_text || '';\n\nconst updatedConversation = [...conversation, { role: 'user', content: userMessage }];\n\nconst stateGuides = {\n  new: 'Rozpocznij onboarding. Przywitaj ciepło i krótko (max 2 zdania). Zapytaj o najważniejsze wartości życiowe i zawodowe użytkownika. Ustaw next_state: \"values\".',\n  values: `Zbierasz wartości użytkownika. Oceń czy masz wystarczające informacje — minimum 2 odpowiedzi w historii rozmowy, treść konkretna. Jeśli tak: podsumuj wartości w update.values_summary (2-4 zdania) i poproś o potwierdzenie. Ustaw next_state: \"values_confirm\". Jeśli nie: zadaj JEDNO pogłębiające pytanie. Ustaw next_state: \"values\".`,\n  values_confirm: `Użytkownik odpowiada na pytanie o potwierdzenie wartości. Podsumowanie: \"${collectedData.values_summary || ''}\". TAK/tak/yes/zgadza się → przejdź do pytania o płeć (mężczyzna/kobieta/inne), next_state: \"gender\". NIE/nie → wróć do zbierania, next_state: \"values\".`,\n  gender: `Zbierz płeć użytkownika (mężczyzna/kobieta/inne). Zapisz w update.gender. Następnie zapytaj: \"Co jest Twoim najważniejszym celem zawodowym na najbliższy rok?\", next_state: \"goal\".`,\n  goal: `Zbierasz cel zawodowy. Min 1-2 odpowiedzi wystarczy. Jeśli masz wystarczające informacje: sformułuj cel SMART w update.goal_smart, poproś o potwierdzenie, next_state: \"goal_confirm\". Jeśli nie: jedno pogłębiające pytanie, next_state: \"goal\".`,\n  goal_confirm: `Użytkownik potwierdza cel SMART: \"${collectedData.goal_smart || ''}\". TAK/tak/yes → zakończ onboarding! Wyślij ciepłą wiadomość końcową (maks 3 zdania), next_state: \"complete\". NIE/nie → zapytaj co zmienić, next_state: \"goal\".`\n};\n\nconst collectedInfo = Object.entries(collectedData)\n  .filter(([k]) => k !== 'conversation')\n  .map(([k, v]) => `${k}: ${v}`)\n  .join('\\n') || '(brak)';\n\nconst historyText = updatedConversation\n  .map(m => `${m.role === 'user' ? 'UŻYTKOWNIK' : 'ASYSTENT'}: ${m.content}`)\n  .join('\\n') || '(brak — to pierwsza wiadomość)';\n\nconst fullPrompt = `Prowadzisz onboarding użytkownika aplikacji do journalingu kariery.\\n\\nAKTUALNY STAN: ${state}\\nZEBRANE INFORMACJE:\\n${collectedInfo}\\n\\nINSTRUKCJA DLA TEGO STANU:\\n${stateGuides[state] || stateGuides.new}\\n\\nHISTORIA ROZMOWY:\\n${historyText}\\n\\nOdpowiedz TYLKO JSON (bez markdown, bez komentarzy):\\n{\\n  \"message\": \"wiadomość do wysłania użytkownikowi\",\\n  \"next_state\": \"values|values_confirm|gender|goal|goal_confirm|complete\",\\n  \"update\": {}\\n}`;\n\nreturn [{\n  json: {\n    user_id: stateCtx.user_id,\n    chat_id: stateCtx.chat_id,\n    state,\n    collected_data: collectedData,\n    conversation: updatedConversation,\n    full_prompt: fullPrompt\n  }\n}];"
+      }
+    },
+    {
+      "id": "tj-ob-010",
+      "name": "Claude Conversation",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [2120, 300],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.full_prompt }}"
+      }
+    },
+    {
+      "id": "tj-ob-011",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [2120, 480],
+      "parameters": {
+        "model": { "mode": "id", "value": "claude-sonnet-4-6" }
+      },
+      "credentials": {
+        "anthropicApi": { "id": "", "name": "Anthropic Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ob-012",
+      "name": "Parse Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2360, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const buildCtx = $('Build Context').first().json;\nconst llmResponse = $input.first().json.text || $input.first().json.output || '';\n\nconst cleaned = llmResponse\n  .replace(/```json\\n?/g, '')\n  .replace(/```\\n?/g, '')\n  .trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch(e) {\n  const match = cleaned.match(/\\{[\\s\\S]*\\}/);\n  parsed = match ? JSON.parse(match[0]) : {\n    message: 'Przepraszam, wystąpił błąd. Napisz cokolwiek żeby spróbować ponownie.',\n    next_state: buildCtx.state,\n    update: {}\n  };\n}\n\nconst nextState = parsed.next_state || buildCtx.state;\nconst update = parsed.update || {};\nconst message = parsed.message || 'Coś poszło nie tak. Spróbuj ponownie.';\n\nconst updatedCollectedData = {\n  ...buildCtx.collected_data,\n  ...update,\n  conversation: [...buildCtx.conversation, { role: 'assistant', content: message }]\n};\n\nconst isComplete = nextState === 'complete';\n\nconst amphitheaterText = isComplete\n  ? `Wartości: ${updatedCollectedData.values_summary || ''}. Cel SMART: ${updatedCollectedData.goal_smart || ''}`\n  : '';\n\nreturn [{\n  json: {\n    user_id: buildCtx.user_id,\n    chat_id: buildCtx.chat_id,\n    next_state: nextState,\n    message,\n    collected_data: updatedCollectedData,\n    is_complete: isComplete,\n    amphitheater_text: amphitheaterText,\n    gender: updatedCollectedData.gender || '',\n    values_raw: updatedCollectedData.values_summary || ''\n  }\n}];"
+      }
+    },
+    {
+      "id": "tj-ob-013",
+      "name": "Delete Old Session",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2600, 300],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "delete",
+        "tableId": "onboarding_sessions",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ob-014",
+      "name": "Is Complete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [2840, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "check-is-complete",
+              "leftValue": "={{ $('Parse Response').first().json.is_complete }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "tj-ob-015",
+      "name": "Save Profile",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [3080, 100],
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "onboarding_profile",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Parse Response').first().json.user_id }}"
+            },
+            {
+              "fieldId": "gender",
+              "fieldValue": "={{ $('Parse Response').first().json.gender }}"
+            },
+            {
+              "fieldId": "values_raw",
+              "fieldValue": "={{ $('Parse Response').first().json.values_raw }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ob-016",
+      "name": "Prepare Amphitheater",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3320, 100],
+      "parameters": {
+        "jsCode": "const parseData = $('Parse Response').first().json;\nreturn [{\n  json: {\n    user_id: parseData.user_id,\n    weekly_condensation_text: parseData.amphitheater_text\n  }\n}];"
+      }
+    },
+    {
+      "id": "tj-ob-017",
+      "name": "Update Amphitheater",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [3560, 100],
+      "parameters": {
+        "source": "database",
+        "workflowId": "rUuhiK2xClpGJJad",
+        "workflowInputs": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "schema": [],
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "ignoreTypeMismatch": false
+        }
+      }
+    },
+    {
+      "id": "tj-ob-018",
+      "name": "Send Complete",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3800, 100],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Parse Response').first().json.chat_id }}",
+        "text": "={{ $('Parse Response').first().json.message }}"
+      },
+      "credentials": {
+        "telegramApi": { "id": "", "name": "Telegram Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ob-019",
+      "name": "Create Session",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [3080, 500],
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "onboarding_sessions",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Parse Response').first().json.user_id }}"
+            },
+            {
+              "fieldId": "state",
+              "fieldValue": "={{ $('Parse Response').first().json.next_state }}"
+            },
+            {
+              "fieldId": "collected_data",
+              "fieldValue": "={{ $('Parse Response').first().json.collected_data }}"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ob-020",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3320, 500],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Parse Response').first().json.chat_id }}",
+        "text": "={{ $('Parse Response').first().json.message }}"
+      },
+      "credentials": {
+        "telegramApi": { "id": "", "name": "Telegram Tech Diary" }
+      }
+    }
+  ],
+  "connections": {
+    "Workflow Input": {
+      "main": [[{ "node": "Try Create User", "type": "main", "index": 0 }]]
+    },
+    "Try Create User": {
+      "main": [[{ "node": "Get User", "type": "main", "index": 0 }]]
+    },
+    "Get User": {
+      "main": [[{ "node": "Get Profile", "type": "main", "index": 0 }]]
+    },
+    "Get Profile": {
+      "main": [[{ "node": "Check State", "type": "main", "index": 0 }]]
+    },
+    "Check State": {
+      "main": [[{ "node": "Already Onboarded?", "type": "main", "index": 0 }]]
+    },
+    "Already Onboarded?": {
+      "main": [
+        [{ "node": "Send Already Done", "type": "main", "index": 0 }],
+        [{ "node": "Get Session", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Session": {
+      "main": [[{ "node": "Build Context", "type": "main", "index": 0 }]]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [[{ "node": "Claude Conversation", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Build Context": {
+      "main": [[{ "node": "Claude Conversation", "type": "main", "index": 0 }]]
+    },
+    "Claude Conversation": {
+      "main": [[{ "node": "Parse Response", "type": "main", "index": 0 }]]
+    },
+    "Parse Response": {
+      "main": [[{ "node": "Delete Old Session", "type": "main", "index": 0 }]]
+    },
+    "Delete Old Session": {
+      "main": [[{ "node": "Is Complete?", "type": "main", "index": 0 }]]
+    },
+    "Is Complete?": {
+      "main": [
+        [{ "node": "Save Profile", "type": "main", "index": 0 }],
+        [{ "node": "Create Session", "type": "main", "index": 0 }]
+      ]
+    },
+    "Save Profile": {
+      "main": [[{ "node": "Prepare Amphitheater", "type": "main", "index": 0 }]]
+    },
+    "Prepare Amphitheater": {
+      "main": [[{ "node": "Update Amphitheater", "type": "main", "index": 0 }]]
+    },
+    "Update Amphitheater": {
+      "main": [[{ "node": "Send Complete", "type": "main", "index": 0 }]]
+    },
+    "Create Session": {
+      "main": [[{ "node": "Send Response", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

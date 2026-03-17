@@ -1,0 +1,209 @@
+{
+  "name": "[TJ] journal-entry",
+  "nodes": [
+    {
+      "id": "tj-je-001",
+      "name": "Workflow Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "parameters": {}
+    },
+    {
+      "id": "tj-je-002",
+      "name": "Get Profile",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [440, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "onboarding_profile",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Workflow Input').first().json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-je-003",
+      "name": "Prepare Memory Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "const input = $('Workflow Input').first().json;\nreturn [{\n  json: {\n    user_id: input.user_id,\n    context_type: 'daily',\n    query_text: input.message_text\n  }\n}];"
+      }
+    },
+    {
+      "id": "tj-je-004",
+      "name": "Call Memory Retrieval",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [920, 300],
+      "parameters": {
+        "source": "database",
+        "workflowId": "dvYPWkdlYGDSlFh2",
+        "workflowInputs": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "schema": [],
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "ignoreTypeMismatch": false
+        }
+      }
+    },
+    {
+      "id": "tj-je-005",
+      "name": "Prepare Journal Item",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 300],
+      "parameters": {
+        "jsCode": "const input = $('Workflow Input').first().json;\nconst now = new Date();\nconst weekStart = new Date(now);\nweekStart.setDate(now.getDate() - now.getDay() + 1);\nweekStart.setHours(0, 0, 0, 0);\nreturn [{\n  json: {\n    pageContent: input.message_text,\n    metadata: {\n      user_id: input.user_id,\n      week_start: weekStart.toISOString().split('T')[0]\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "tj-je-006",
+      "name": "Save Journal Entry",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [1400, 300],
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "mode": "id",
+          "value": "journal_entries"
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-je-007",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1,
+      "position": [1400, 480],
+      "parameters": {
+        "model": "text-embedding-3-small"
+      },
+      "credentials": {
+        "openAiApi": { "id": "", "name": "OpenAI Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-je-008",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const input = $('Workflow Input').first().json;\nconst profileItem = $('Get Profile').first().json;\nconst memoryResult = $('Call Memory Retrieval').first().json;\n\nconst valuesRaw = profileItem.values_raw || '(nie określone)';\nconst gender = profileItem.gender || '(nie podano)';\nconst context = memoryResult.context || '(brak kontekstu z dziennika)';\n\nconst fullPrompt = `Jesteś AI coachem kariery dla osoby technicznej. Twoja rola to pogłębianie refleksji — nie dawanie gotowych odpowiedzi ani rad.\\n\\nPROFIL UŻYTKOWNIKA:\\nPłeć: ${gender}\\nWartości: ${valuesRaw}\\n\\nKONTEKST Z DZIENNIKA:\\n${context}\\n\\nWPIS UŻYTKOWNIKA:\\n${input.message_text}\\n\\nNa podstawie wpisu wybierz JEDNĄ personę i zadaj JEDNO precyzyjne pytanie pogłębiające:\\n- Strateg (kariera, decyzje strategiczne)\\n- Coach CBT (emocje, przekonania, blokady)\\n- Trener mentalny (motywacja, energia, nawyki)\\n- Analityk (procesy, wzorce zachowań)\\n\\nNie dawaj odpowiedzi. Nie dawaj rad. Tylko jedno pytanie.\\n\\nFormat:\\nPERSONA: [nazwa]\\nPYTANIE: [treść pytania]`;\n\nreturn [{ json: { full_prompt: fullPrompt } }];"
+      }
+    },
+    {
+      "id": "tj-je-009",
+      "name": "Claude Coach",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [1880, 300],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.full_prompt }}"
+      }
+    },
+    {
+      "id": "tj-je-010",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [1880, 480],
+      "parameters": {
+        "model": { "mode": "id", "value": "claude-sonnet-4-6" }
+      },
+      "credentials": {
+        "anthropicApi": { "id": "", "name": "Anthropic Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-je-011",
+      "name": "Extract Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2120, 300],
+      "parameters": {
+        "jsCode": "const response = $input.first().json.text || $input.first().json.output || '';\nconst chatId = $('Workflow Input').first().json.chat_id;\n\nlet question = response;\nconst pytanieMatch = response.match(/PYTANIE:\\s*([\\s\\S]+)/i);\nif (pytanieMatch) question = pytanieMatch[1].trim();\n\nreturn [{ json: { chat_id: chatId, question } }];"
+      }
+    },
+    {
+      "id": "tj-je-012",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2360, 300],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.question }}"
+      },
+      "credentials": {
+        "telegramApi": { "id": "", "name": "Telegram Tech Diary" }
+      }
+    }
+  ],
+  "connections": {
+    "Workflow Input": {
+      "main": [[{ "node": "Get Profile", "type": "main", "index": 0 }]]
+    },
+    "Get Profile": {
+      "main": [[{ "node": "Prepare Memory Query", "type": "main", "index": 0 }]]
+    },
+    "Prepare Memory Query": {
+      "main": [[{ "node": "Call Memory Retrieval", "type": "main", "index": 0 }]]
+    },
+    "Call Memory Retrieval": {
+      "main": [[{ "node": "Prepare Journal Item", "type": "main", "index": 0 }]]
+    },
+    "Prepare Journal Item": {
+      "main": [[{ "node": "Save Journal Entry", "type": "main", "index": 0 }]]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [[{ "node": "Save Journal Entry", "type": "ai_embedding", "index": 0 }]]
+    },
+    "Save Journal Entry": {
+      "main": [[{ "node": "Build Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build Prompt": {
+      "main": [[{ "node": "Claude Coach", "type": "main", "index": 0 }]]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [[{ "node": "Claude Coach", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Claude Coach": {
+      "main": [[{ "node": "Extract Response", "type": "main", "index": 0 }]]
+    },
+    "Extract Response": {
+      "main": [[{ "node": "Send Response", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

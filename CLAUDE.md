@@ -14,6 +14,7 @@ Workflows are defined as JSON files. When working with n8n workflows in this rep
 - Workflow JSON files can be imported into n8n via **Settings → Import from file**
 - Expressions use `{{ }}` syntax with variables like `$json`, `$node`, `$input`
 - JavaScript Code nodes use `$input.all()`, `$input.first()`, `$json` etc.
+- Always create json files on project files sytsem just before send to n8n using mcp. Json files should be the same like this one send to n8n. When you change sth in json file always reflect changes in local file just before send to n8n using mcp.
 
 ## Relevant Skills
 

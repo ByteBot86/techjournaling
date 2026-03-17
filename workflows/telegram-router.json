@@ -1,0 +1,360 @@
+{
+  "name": "[TJ] telegram-router",
+  "nodes": [
+    {
+      "id": "tj-tr-001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300],
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": { "id": "", "name": "Telegram Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-tr-002",
+      "name": "Extract Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300],
+      "parameters": {
+        "jsCode": "const msg = $json.message;\nif (!msg || !msg.text) return [];\nconst telegram_id = String(msg.from.id);\nconst chat_id = String(msg.chat.id);\nconst text = msg.text || '';\nconst commandMatch = text.match(/^(\\/[a-zA-Z_]+)/);\nconst command = commandMatch ? commandMatch[1] : null;\nconst message_text = command ? text.slice(command.length).trim() || text : text;\nreturn [{ json: { telegram_id, chat_id, text, command, message_text } }];"
+      }
+    },
+    {
+      "id": "tj-tr-003",
+      "name": "Find User",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-tr-015",
+      "name": "Get Session",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [928, 504],
+      "alwaysOutputData": true,
+      "continueOnFail": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "onboarding_sessions",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Find User').first().json.id || '00000000-0000-0000-0000-000000000000' }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-tr-004",
+      "name": "Set Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300],
+      "parameters": {
+        "jsCode": "const msg = $('Extract Message').first().json;\nconst userItem = $('Find User').first().json;\nconst sessionItem = $input.first().json;\n\nconst user_id = userItem.id || null;\nconst sessionState = sessionItem.state || null;\n\nconst onboardingActiveStates = ['new', 'values', 'values_confirm', 'gender', 'goal', 'goal_confirm'];\nconst goalChangeActiveStates = ['goal_collecting', 'gc_confirm'];\n\nlet effectiveCommand = msg.command;\nif (!msg.command && sessionState) {\n  if (onboardingActiveStates.includes(sessionState)) {\n    effectiveCommand = '/start';\n  } else if (goalChangeActiveStates.includes(sessionState)) {\n    effectiveCommand = '/goal';\n  }\n}\n\nreturn [{ json: {\n  telegram_id: msg.telegram_id,\n  chat_id: msg.chat_id,\n  message_text: msg.message_text,\n  text: msg.text,\n  command: effectiveCommand,\n  user_id: user_id\n} }];"
+      }
+    },
+    {
+      "id": "tj-tr-005",
+      "name": "Route Command",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1160, 300],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+                "conditions": [
+                  {
+                    "id": "rule-start",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/start",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputIndex": 0
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+                "conditions": [
+                  {
+                    "id": "rule-goal",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/goal",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputIndex": 1
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+                "conditions": [
+                  {
+                    "id": "rule-export",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/export",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputIndex": 2
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "tj-tr-006",
+      "name": "Create User",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1400, 100],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "users",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "telegram_id",
+              "fieldValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-tr-007",
+      "name": "Get User",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1640, 100],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Set Route').first().json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-tr-008",
+      "name": "Set Start Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 100],
+      "parameters": {
+        "jsCode": "const user = $input.first().json;\nconst routeData = $('Set Route').first().json;\nreturn [{ json: {\n  user_id: user.id,\n  telegram_id: routeData.telegram_id,\n  chat_id: routeData.chat_id,\n  message_text: routeData.message_text\n} }];"
+      }
+    },
+    {
+      "id": "tj-tr-009",
+      "name": "Call Onboarding",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [2120, 100],
+      "parameters": {
+        "source": "database",
+        "workflowId": "nID2ILhYiD84PTOg",
+        "workflowInputs": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "schema": [],
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "ignoreTypeMismatch": false
+        }
+      }
+    },
+    {
+      "id": "tj-tr-010",
+      "name": "Call Goal Change",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [1400, 300],
+      "parameters": {
+        "source": "database",
+        "workflowId": "qofnkI9CXa6f8rxs",
+        "workflowInputs": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "schema": [],
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "ignoreTypeMismatch": false
+        }
+      }
+    },
+    {
+      "id": "tj-tr-011",
+      "name": "Call Export",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [1400, 500],
+      "parameters": {
+        "source": "database",
+        "workflowId": "67aT3Lh0fcETCAaj",
+        "workflowInputs": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "schema": [],
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "ignoreTypeMismatch": false
+        }
+      }
+    },
+    {
+      "id": "tj-tr-012",
+      "name": "Has User?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1400, 700],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+          "conditions": [
+            {
+              "id": "check-user-exists",
+              "leftValue": "={{ $json.user_id || '' }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "tj-tr-013",
+      "name": "Call Journal Entry",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [1640, 700],
+      "parameters": {
+        "source": "database",
+        "workflowId": "Vq2fDuRskkipBhjv",
+        "workflowInputs": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "schema": [],
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "ignoreTypeMismatch": false
+        }
+      }
+    },
+    {
+      "id": "tj-tr-014",
+      "name": "Send No User",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1640, 900],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "Aby skorzystać z Tech Diary, najpierw użyj komendy /start."
+      },
+      "credentials": {
+        "telegramApi": { "id": "", "name": "Telegram Tech Diary" }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": { "main": [[{ "node": "Extract Message", "type": "main", "index": 0 }]] },
+    "Extract Message": { "main": [[{ "node": "Find User", "type": "main", "index": 0 }]] },
+    "Find User": { "main": [[{ "node": "Get Session", "type": "main", "index": 0 }]] },
+    "Get Session": { "main": [[{ "node": "Set Route", "type": "main", "index": 0 }]] },
+    "Set Route": { "main": [[{ "node": "Route Command", "type": "main", "index": 0 }]] },
+    "Route Command": {
+      "main": [
+        [{ "node": "Create User", "type": "main", "index": 0 }],
+        [{ "node": "Call Goal Change", "type": "main", "index": 0 }],
+        [{ "node": "Call Export", "type": "main", "index": 0 }],
+        [{ "node": "Has User?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create User": { "main": [[{ "node": "Get User", "type": "main", "index": 0 }]] },
+    "Get User": { "main": [[{ "node": "Set Start Input", "type": "main", "index": 0 }]] },
+    "Set Start Input": { "main": [[{ "node": "Call Onboarding", "type": "main", "index": 0 }]] },
+    "Has User?": {
+      "main": [
+        [{ "node": "Call Journal Entry", "type": "main", "index": 0 }],
+        [{ "node": "Send No User", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

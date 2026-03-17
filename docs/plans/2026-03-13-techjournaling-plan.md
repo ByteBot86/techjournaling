@@ -35,6 +35,8 @@ Każdy workflow zapisywany jako JSON w `workflows/` przed wysłaniem do n8n prze
 
 ## Task 1: Supabase — setup tabel i pgvector
 
+> **Uwaga schematu:** Tabele wektorowe używają formatu n8n-native (`text`, `metadata jsonb`, `embedding`) zamiast custom kolumn. Dzięki temu działają natywnie z n8n Supabase Vector Store node. Dane relacyjne (user_id, daty itp.) trzymamy w kolumnie `metadata` jako jsonb.
+
 **Files:**
 - Create: `supabase/migrations/001_initial_schema.sql`
 
@@ -50,10 +52,11 @@ create extension if not exists vector;
 create table users (
   id uuid primary key default gen_random_uuid(),
   telegram_id bigint unique not null,
+  user_login text unique,
   created_at timestamptz default now()
 );
 
--- Onboarding profile (jednorazowy, niezmienny)
+-- Onboarding profile (jednorazowy, niezmienny — bez embeddingu, nie wyszukiwany semantycznie)
 create table onboarding_profile (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
@@ -62,11 +65,21 @@ create table onboarding_profile (
   completed_at timestamptz default now()
 );
 
+-- Onboarding sessions (stan wieloturowego dialogu)
+create table onboarding_sessions (
+  user_id uuid primary key references users(id) on delete cascade,
+  state text not null,  -- 'values'|'values_confirm'|'gender'|'goal'|'goal_confirm'
+  collected_data jsonb default '{}',
+  updated_at timestamptz default now()
+);
+
 -- Journal entries (pamięć krótkoterminowa)
+-- n8n-native schema: text + metadata + embedding + user_id FK
 create table journal_entries (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
-  content text not null,
+  text text not null,
+  metadata jsonb default '{}',   -- {week_start} lub inne n8n-specific dane
   embedding vector(1536),
   created_at timestamptz default now()
 );
@@ -75,8 +88,8 @@ create table journal_entries (
 create table weekly_condensations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
-  week_start date not null,
-  content text not null,
+  text text not null,
+  metadata jsonb default '{}',   -- {week_start}
   embedding vector(1536),
   created_at timestamptz default now()
 );
@@ -85,8 +98,8 @@ create table weekly_condensations (
 create table monthly_condensations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
-  month date not null,
-  content text not null,
+  text text not null,
+  metadata jsonb default '{}',   -- {month}
   embedding vector(1536),
   created_at timestamptz default now()
 );
@@ -95,8 +108,8 @@ create table monthly_condensations (
 create table yearly_condensations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
-  year int not null,
-  content text not null,
+  text text not null,
+  metadata jsonb default '{}',   -- {year}
   embedding vector(1536),
   created_at timestamptz default now()
 );
@@ -105,19 +118,18 @@ create table yearly_condensations (
 create table amphitheater (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
-  category text not null check (category in ('values','goal','insight','person','project')),
-  content text not null,
+  text text not null,
+  metadata jsonb default '{}',   -- {category, superseded_at}
   embedding vector(1536),
-  created_at timestamptz default now(),
-  superseded_at timestamptz default null
+  created_at timestamptz default now()
 );
 
 -- Weekly plans
 create table weekly_plans (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
-  week_start date not null,
-  plan_content text not null,
+  text text not null,
+  metadata jsonb default '{}',   -- {week_start}
   embedding vector(1536),
   created_at timestamptz default now()
 );
@@ -129,33 +141,130 @@ create index on monthly_condensations using ivfflat (embedding vector_cosine_ops
 create index on yearly_condensations using ivfflat (embedding vector_cosine_ops);
 create index on amphitheater using ivfflat (embedding vector_cosine_ops);
 create index on weekly_plans using ivfflat (embedding vector_cosine_ops);
+
+-- Indeksy na user_id do filtrowania po użytkowniku
+create index on journal_entries (user_id);
+create index on weekly_condensations (user_id);
+create index on monthly_condensations (user_id);
+create index on yearly_condensations (user_id);
+create index on amphitheater (user_id);
+create index on weekly_plans (user_id);
 ```
 
-**Step 2: Uruchom migrację w Supabase**
+**Step 2: Uruchom migrację przez Supabase MCP**
 
-Wejdź na Supabase Dashboard → SQL Editor → wklej i uruchom `001_initial_schema.sql`.
+```
+mcp__supabase__apply_migration(name="initial_schema", query=<zawartość pliku>)
+```
 
-**Step 3: Utwórz funkcję RPC do semantic search**
+**Step 3: Utwórz funkcje RPC do semantic search (n8n-compatible)**
 
-Uruchom w SQL Editor:
+n8n Supabase Vector Store node wywołuje RPC o nazwie `match_<table_name>`. Utwórz dla każdej tabeli:
 
 ```sql
+-- match_journal_entries — filtruje po user_id (kolumna) i dacie
 create or replace function match_journal_entries(
   query_embedding vector(1536),
-  match_user_id uuid,
-  match_threshold float,
   match_count int,
-  days_back int default 14
+  filter jsonb default '{}'
 )
-returns table (id uuid, content text, created_at timestamptz, similarity float)
+returns table (id uuid, text text, metadata jsonb, similarity float)
 language sql stable
 as $$
-  select id, content, created_at,
+  select id, text, metadata,
     1 - (embedding <=> query_embedding) as similarity
   from journal_entries
-  where user_id = match_user_id
-    and created_at > now() - (days_back || ' days')::interval
-    and 1 - (embedding <=> query_embedding) > match_threshold
+  where
+    (filter->>'user_id' is null or user_id = (filter->>'user_id')::uuid)
+    and (filter->>'days_back' is null or
+         created_at > now() - ((filter->>'days_back') || ' days')::interval)
+  order by embedding <=> query_embedding
+  limit match_count;
+$$;
+
+-- match_weekly_condensations
+create or replace function match_weekly_condensations(
+  query_embedding vector(1536),
+  match_count int,
+  filter jsonb default '{}'
+)
+returns table (id uuid, text text, metadata jsonb, similarity float)
+language sql stable
+as $$
+  select id, text, metadata,
+    1 - (embedding <=> query_embedding) as similarity
+  from weekly_condensations
+  where (filter->>'user_id' is null or user_id = (filter->>'user_id')::uuid)
+  order by embedding <=> query_embedding
+  limit match_count;
+$$;
+
+-- match_amphitheater — tylko aktualny (superseded_at IS NULL w metadata)
+create or replace function match_amphitheater(
+  query_embedding vector(1536),
+  match_count int,
+  filter jsonb default '{}'
+)
+returns table (id uuid, text text, metadata jsonb, similarity float)
+language sql stable
+as $$
+  select id, text, metadata,
+    1 - (embedding <=> query_embedding) as similarity
+  from amphitheater
+  where
+    (filter->>'user_id' is null or user_id = (filter->>'user_id')::uuid)
+    and metadata->>'superseded_at' is null
+  order by embedding <=> query_embedding
+  limit match_count;
+$$;
+
+-- match_monthly_condensations
+create or replace function match_monthly_condensations(
+  query_embedding vector(1536),
+  match_count int,
+  filter jsonb default '{}'
+)
+returns table (id uuid, text text, metadata jsonb, similarity float)
+language sql stable
+as $$
+  select id, text, metadata,
+    1 - (embedding <=> query_embedding) as similarity
+  from monthly_condensations
+  where (filter->>'user_id' is null or user_id = (filter->>'user_id')::uuid)
+  order by embedding <=> query_embedding
+  limit match_count;
+$$;
+
+-- match_yearly_condensations
+create or replace function match_yearly_condensations(
+  query_embedding vector(1536),
+  match_count int,
+  filter jsonb default '{}'
+)
+returns table (id uuid, text text, metadata jsonb, similarity float)
+language sql stable
+as $$
+  select id, text, metadata,
+    1 - (embedding <=> query_embedding) as similarity
+  from yearly_condensations
+  where (filter->>'user_id' is null or user_id = (filter->>'user_id')::uuid)
+  order by embedding <=> query_embedding
+  limit match_count;
+$$;
+
+-- match_weekly_plans
+create or replace function match_weekly_plans(
+  query_embedding vector(1536),
+  match_count int,
+  filter jsonb default '{}'
+)
+returns table (id uuid, text text, metadata jsonb, similarity float)
+language sql stable
+as $$
+  select id, text, metadata,
+    1 - (embedding <=> query_embedding) as similarity
+  from weekly_plans
+  where (filter->>'user_id' is null or user_id = (filter->>'user_id')::uuid)
   order by embedding <=> query_embedding
   limit match_count;
 $$;
@@ -165,7 +274,7 @@ $$;
 
 ```bash
 git add supabase/
-git commit -m "feat: add Supabase schema and pgvector setup"
+git commit -m "feat: add Supabase schema with n8n-native vector columns"
 ```
 
 ---

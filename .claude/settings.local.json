@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__n8n-mcp__n8n_list_workflows",
+      "mcp__n8n-mcp__n8n_get_workflow",
+      "Bash(find:*)",
+      "mcp__supabase__list_tables",
+      "mcp__n8n-mcp__get_node",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__get_project_url",
+      "mcp__n8n-mcp__n8n_create_workflow",
+      "mcp__n8n-mcp__search_nodes"
+    ]
+  }
+}

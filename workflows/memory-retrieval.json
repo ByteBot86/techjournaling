@@ -1,0 +1,147 @@
+{
+  "name": "[TJ] memory-retrieval",
+  "nodes": [
+    {
+      "id": "tj-mr-001",
+      "name": "Workflow Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "parameters": {}
+    },
+    {
+      "id": "tj-mr-002",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300],
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\nconst contextMap = {\n  daily:     { table: 'journal_entries',       query: 'match_journal_entries' },\n  weekly:    { table: 'journal_entries',       query: 'match_journal_entries' },\n  monthly:   { table: 'weekly_condensations',  query: 'match_weekly_condensations' },\n  yearly:    { table: 'monthly_condensations', query: 'match_monthly_condensations' },\n  inception: { table: 'yearly_condensations',  query: 'match_yearly_condensations' }\n};\n\nconst mapping = contextMap[input.context_type] || contextMap['daily'];\n\nreturn [{\n  json: {\n    user_id: input.user_id,\n    context_type: input.context_type,\n    query_text: input.query_text,\n    table_name: mapping.table,\n    query_name: mapping.query\n  }\n}];"
+      }
+    },
+    {
+      "id": "tj-mr-003",
+      "name": "Supabase Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [680, 300],
+      "parameters": {
+        "mode": "load",
+        "tableName": {
+          "mode": "id",
+          "value": "={{ $('Prepare').first().json.table_name }}"
+        },
+        "prompt": "={{ $('Prepare').first().json.query_text }}",
+        "topK": 5,
+        "options": {
+          "queryName": "={{ $('Prepare').first().json.query_name }}",
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "user_id",
+                "value": "={{ $('Prepare').first().json.user_id }}"
+              }
+            ]
+          }
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase Tech Diary"
+        }
+      }
+    },
+    {
+      "id": "tj-mr-004",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1,
+      "position": [680, 480],
+      "parameters": {
+        "model": "text-embedding-3-small"
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAI Tech Diary"
+        }
+      }
+    },
+    {
+      "id": "tj-mr-005",
+      "name": "Collect Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nconst results = items.map(item => ({\n  text: item.json.pageContent || '',\n  metadata: item.json.metadata || {}\n}));\nreturn [{ json: { search_results: results } }];"
+      }
+    },
+    {
+      "id": "tj-mr-006",
+      "name": "Fetch Amphitheater",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1160, 300],
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "amphitheater",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Prepare').first().json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase Tech Diary"
+        }
+      }
+    },
+    {
+      "id": "tj-mr-007",
+      "name": "Format Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const searchResults = $('Collect Search Results').first().json.search_results || [];\nconst ampItems = $input.all();\n\n// Tylko aktywne rekordy (superseded_at = null)\nconst activeAmp = ampItems.filter(item => !item.json.metadata?.superseded_at);\n\n// Kontekst z wyszukiwania semantycznego\nconst searchContext = searchResults\n  .map(r => r.text)\n  .filter(Boolean)\n  .join('\\n\\n');\n\n// Profil użytkownika z amfiteatru\nconst ampContext = activeAmp\n  .map(item => {\n    const cat = (item.json.metadata?.category || 'info').toUpperCase();\n    return `[${cat}] ${item.json.text}`;\n  })\n  .join('\\n\\n');\n\nconst context = [\n  ampContext ? `=== PROFIL UŻYTKOWNIKA ===\\n${ampContext}` : '',\n  searchContext ? `=== KONTEKST Z DZIENNIKA ===\\n${searchContext}` : ''\n].filter(Boolean).join('\\n\\n');\n\nreturn [{ json: { context } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Workflow Input": {
+      "main": [[{ "node": "Prepare", "type": "main", "index": 0 }]]
+    },
+    "Prepare": {
+      "main": [[{ "node": "Supabase Vector Store", "type": "main", "index": 0 }]]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [[{ "node": "Supabase Vector Store", "type": "ai_embedding", "index": 0 }]]
+    },
+    "Supabase Vector Store": {
+      "main": [[{ "node": "Collect Search Results", "type": "main", "index": 0 }]]
+    },
+    "Collect Search Results": {
+      "main": [[{ "node": "Fetch Amphitheater", "type": "main", "index": 0 }]]
+    },
+    "Fetch Amphitheater": {
+      "main": [[{ "node": "Format Context", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

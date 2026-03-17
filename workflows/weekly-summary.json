@@ -1,0 +1,281 @@
+{
+  "name": "[TJ] weekly-summary",
+  "nodes": [
+    {
+      "id": "tj-ws-001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 8 * * 0" }]
+        }
+      }
+    },
+    {
+      "id": "tj-ws-002",
+      "name": "Get All Users",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [440, 300],
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": true
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ws-003",
+      "name": "SplitInBatches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [680, 300],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "tj-ws-004",
+      "name": "Set User",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300],
+      "parameters": {
+        "jsCode": "return [{ json: { user_id: $json.id, telegram_id: $json.telegram_id } }];"
+      }
+    },
+    {
+      "id": "tj-ws-005",
+      "name": "Get Weekly Condensation",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1160, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "weekly_condensations",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            },
+            {
+              "keyName": "created_at",
+              "condition": "gte",
+              "keyValue": "={{ new Date(Date.now() - 7*24*60*60*1000).toISOString() }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ws-006",
+      "name": "Collect Condensation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const userId = $('Set User').first().json.user_id;\nconst telegramId = $('Set User').first().json.telegram_id;\nconst items = $input.all().filter(item => item.json.text);\nitems.sort((a, b) => new Date(b.json.created_at) - new Date(a.json.created_at));\nconst latestCondensation = items[0]?.json?.text || '(brak kondensacji tygodnia)';\nreturn [{ json: { user_id: userId, telegram_id: telegramId, latest_condensation: latestCondensation } }];"
+      }
+    },
+    {
+      "id": "tj-ws-007",
+      "name": "Get Weekly Plan",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1640, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "weekly_plans",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            },
+            {
+              "keyName": "created_at",
+              "condition": "gte",
+              "keyValue": "={{ new Date(Date.now() - 7*24*60*60*1000).toISOString() }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ws-008",
+      "name": "Collect Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const prevData = $('Collect Condensation').first().json;\nconst items = $input.all().filter(item => item.json.text);\nitems.sort((a, b) => new Date(b.json.created_at) - new Date(a.json.created_at));\nconst currentPlan = items[0]?.json?.text || '(brak planu na ten tydzień)';\nreturn [{ json: {\n  user_id: prevData.user_id,\n  telegram_id: prevData.telegram_id,\n  latest_condensation: prevData.latest_condensation,\n  current_plan: currentPlan\n} }];"
+      }
+    },
+    {
+      "id": "tj-ws-009",
+      "name": "Get Amphitheater",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2120, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "amphitheater",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ws-010",
+      "name": "Build Summary Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2360, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const planData = $('Collect Plan').first().json;\nconst ampItems = $input.all();\nconst activeAmp = ampItems.filter(item => !item.json.metadata?.superseded_at);\nconst ampContext = activeAmp\n  .map(item => `[${(item.json.metadata?.category || 'info').toUpperCase()}] ${item.json.text}`)\n  .join('\\n\\n') || '(brak profilu)';\n\nconst fullPrompt = `Generujesz niedzielną wiadomość podsumowującą tydzień dla użytkownika.\\n\\nPROFIL UŻYTKOWNIKA:\\n${ampContext}\\n\\nKONDENSACJA MINIONEGO TYGODNIA:\\n${planData.latest_condensation}\\n\\nPLAN NA NADCHODZĄCY TYDZIEŃ (wygenerowany w sobotę):\\n${planData.current_plan}\\n\\nNapisz wiadomość niedzielną (maks 400 słów) zawierającą:\\n1. 📊 Podsumowanie tygodnia — kluczowe wzorce i spostrzeżenia\\n2. 🎯 Plan na nadchodzący tydzień (z weekly_plans)\\n\\nUżyj przyjaznego Markdown dla Telegram (*bold*, _italic_, emoji). Pisz w drugiej osobie. Bądź konkretny i motywujący.\\n\\nOdpowiedz TYLKO treścią wiadomości, bez dodatkowych komentarzy.`;\n\nreturn [{ json: { telegram_id: planData.telegram_id, full_prompt: fullPrompt } }];"
+      }
+    },
+    {
+      "id": "tj-ws-011",
+      "name": "Claude Summary",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [2600, 300],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.full_prompt }}"
+      }
+    },
+    {
+      "id": "tj-ws-012",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [2600, 480],
+      "parameters": {
+        "model": { "mode": "id", "value": "claude-sonnet-4-6" }
+      },
+      "credentials": {
+        "anthropicApi": { "id": "", "name": "Anthropic Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ws-013",
+      "name": "Extract Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2840, 300],
+      "parameters": {
+        "jsCode": "const response = $input.first().json.text || $input.first().json.output || '';\nconst telegramId = $('Build Summary Prompt').first().json.telegram_id;\nreturn [{ json: { telegram_id: telegramId, message: response } }];"
+      }
+    },
+    {
+      "id": "tj-ws-014",
+      "name": "Send Sunday Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3080, 300],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.telegram_id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "credentials": {
+        "telegramApi": { "id": "", "name": "Telegram Tech Diary" }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Get All Users", "type": "main", "index": 0 }]]
+    },
+    "Get All Users": {
+      "main": [[{ "node": "SplitInBatches", "type": "main", "index": 0 }]]
+    },
+    "SplitInBatches": {
+      "main": [[{ "node": "Set User", "type": "main", "index": 0 }]]
+    },
+    "Set User": {
+      "main": [[{ "node": "Get Weekly Condensation", "type": "main", "index": 0 }]]
+    },
+    "Get Weekly Condensation": {
+      "main": [[{ "node": "Collect Condensation", "type": "main", "index": 0 }]]
+    },
+    "Collect Condensation": {
+      "main": [[{ "node": "Get Weekly Plan", "type": "main", "index": 0 }]]
+    },
+    "Get Weekly Plan": {
+      "main": [[{ "node": "Collect Plan", "type": "main", "index": 0 }]]
+    },
+    "Collect Plan": {
+      "main": [[{ "node": "Get Amphitheater", "type": "main", "index": 0 }]]
+    },
+    "Get Amphitheater": {
+      "main": [[{ "node": "Build Summary Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build Summary Prompt": {
+      "main": [[{ "node": "Claude Summary", "type": "main", "index": 0 }]]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [[{ "node": "Claude Summary", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Claude Summary": {
+      "main": [[{ "node": "Extract Summary", "type": "main", "index": 0 }]]
+    },
+    "Extract Summary": {
+      "main": [[{ "node": "Send Sunday Message", "type": "main", "index": 0 }]]
+    },
+    "Send Sunday Message": {
+      "main": [[{ "node": "SplitInBatches", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
