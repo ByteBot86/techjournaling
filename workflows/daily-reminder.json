@@ -1,0 +1,110 @@
+{
+  "name": "[TJ] daily-reminder",
+  "nodes": [
+    {
+      "id": "tj-drem-001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [200, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 18,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tj-drem-002",
+      "name": "Get Profiles",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [440, 300],
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "onboarding_profile",
+        "returnAll": true
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-drem-003",
+      "name": "Get User",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-drem-004",
+      "name": "Build Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300],
+      "parameters": {
+        "jsCode": "const user = $input.first().json;\nconst profile = $('Get Profiles').item.json;\n\nif (!user.telegram_id) return [];\n\nconst valuesRaw = profile.values_raw || '';\nconst valuesLine = valuesRaw ? `\\n\\n💡 Twoje wartości: ${valuesRaw}` : '';\n\nconst message = `📝 Czas na dzienny wpis w Tech Diary!\\n\\nJak minął Ci dzisiaj dzień w pracy? Co wydarzyło się w kontekście Twoich celów?${valuesLine}\\n\\nNapisz mi — zadam Ci pytanie, które pomoże Ci to przemyśleć głębiej.`;\n\nreturn [{ json: { chat_id: user.telegram_id, message } }];"
+      }
+    },
+    {
+      "id": "tj-drem-005",
+      "name": "Send Reminder",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1160, 300],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.message }}"
+      },
+      "credentials": {
+        "telegramApi": { "id": "", "name": "Telegram Tech Diary" }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Get Profiles", "type": "main", "index": 0 }]]
+    },
+    "Get Profiles": {
+      "main": [[{ "node": "Get User", "type": "main", "index": 0 }]]
+    },
+    "Get User": {
+      "main": [[{ "node": "Build Message", "type": "main", "index": 0 }]]
+    },
+    "Build Message": {
+      "main": [[{ "node": "Send Reminder", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

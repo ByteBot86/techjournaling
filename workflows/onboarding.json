@@ -322,6 +322,17 @@
       }
     },
     {
+      "id": "tj-ob-021",
+      "name": "Normalize Complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3690, 112],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $('Parse Response').first().json }];"
+      }
+    },
+    {
       "id": "tj-ob-018",
       "name": "Send Complete",
       "type": "n8n-nodes-base.telegram",
@@ -443,6 +454,9 @@
       "main": [[{ "node": "Update Amphitheater", "type": "main", "index": 0 }]]
     },
     "Update Amphitheater": {
+      "main": [[{ "node": "Normalize Complete", "type": "main", "index": 0 }]]
+    },
+    "Normalize Complete": {
       "main": [[{ "node": "Send Complete", "type": "main", "index": 0 }]]
     },
     "Create Session": {

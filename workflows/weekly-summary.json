@@ -91,7 +91,7 @@
       "position": [1400, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const userId = $('Set User').first().json.user_id;\nconst telegramId = $('Set User').first().json.telegram_id;\nconst items = $input.all().filter(item => item.json.text);\nitems.sort((a, b) => new Date(b.json.created_at) - new Date(a.json.created_at));\nconst latestCondensation = items[0]?.json?.text || '(brak kondensacji tygodnia)';\nreturn [{ json: { user_id: userId, telegram_id: telegramId, latest_condensation: latestCondensation } }];"
+        "jsCode": "const userId = $('Set User').first().json.user_id;\nconst telegramId = $('Set User').first().json.telegram_id;\nconst items = $input.all().filter(item => item.json.content);\nitems.sort((a, b) => new Date(b.json.created_at) - new Date(a.json.created_at));\nconst latestCondensation = items[0]?.json?.content || '(brak kondensacji tygodnia)';\nreturn [{ json: { user_id: userId, telegram_id: telegramId, latest_condensation: latestCondensation } }];"
       }
     },
     {
@@ -135,7 +135,7 @@
       "position": [1880, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const prevData = $('Collect Condensation').first().json;\nconst items = $input.all().filter(item => item.json.text);\nitems.sort((a, b) => new Date(b.json.created_at) - new Date(a.json.created_at));\nconst currentPlan = items[0]?.json?.text || '(brak planu na ten tydzień)';\nreturn [{ json: {\n  user_id: prevData.user_id,\n  telegram_id: prevData.telegram_id,\n  latest_condensation: prevData.latest_condensation,\n  current_plan: currentPlan\n} }];"
+        "jsCode": "const prevData = $('Collect Condensation').first().json;\nconst items = $input.all().filter(item => item.json.content);\nitems.sort((a, b) => new Date(b.json.created_at) - new Date(a.json.created_at));\nconst currentPlan = items[0]?.json?.content || '(brak planu na ten tydzień)';\nreturn [{ json: {\n  user_id: prevData.user_id,\n  telegram_id: prevData.telegram_id,\n  latest_condensation: prevData.latest_condensation,\n  current_plan: currentPlan\n} }];"
       }
     },
     {
@@ -174,7 +174,7 @@
       "position": [2360, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const planData = $('Collect Plan').first().json;\nconst ampItems = $input.all();\nconst activeAmp = ampItems.filter(item => !item.json.metadata?.superseded_at);\nconst ampContext = activeAmp\n  .map(item => `[${(item.json.metadata?.category || 'info').toUpperCase()}] ${item.json.text}`)\n  .join('\\n\\n') || '(brak profilu)';\n\nconst fullPrompt = `Generujesz niedzielną wiadomość podsumowującą tydzień dla użytkownika.\\n\\nPROFIL UŻYTKOWNIKA:\\n${ampContext}\\n\\nKONDENSACJA MINIONEGO TYGODNIA:\\n${planData.latest_condensation}\\n\\nPLAN NA NADCHODZĄCY TYDZIEŃ (wygenerowany w sobotę):\\n${planData.current_plan}\\n\\nNapisz wiadomość niedzielną (maks 400 słów) zawierającą:\\n1. 📊 Podsumowanie tygodnia — kluczowe wzorce i spostrzeżenia\\n2. 🎯 Plan na nadchodzący tydzień (z weekly_plans)\\n\\nUżyj przyjaznego Markdown dla Telegram (*bold*, _italic_, emoji). Pisz w drugiej osobie. Bądź konkretny i motywujący.\\n\\nOdpowiedz TYLKO treścią wiadomości, bez dodatkowych komentarzy.`;\n\nreturn [{ json: { telegram_id: planData.telegram_id, full_prompt: fullPrompt } }];"
+        "jsCode": "const planData = $('Collect Plan').first().json;\nconst ampItems = $input.all();\nconst activeAmp = ampItems.filter(item => !item.json.metadata?.superseded_at);\nconst ampContext = activeAmp\n  .map(item => `[${(item.json.metadata?.category || 'info').toUpperCase()}] ${item.json.content}`)\n  .join('\\n\\n') || '(brak profilu)';\n\nconst fullPrompt = `Generujesz niedzielną wiadomość podsumowującą tydzień dla użytkownika.\\n\\nPROFIL UŻYTKOWNIKA:\\n${ampContext}\\n\\nKONDENSACJA MINIONEGO TYGODNIA:\\n${planData.latest_condensation}\\n\\nPLAN NA NADCHODZĄCY TYDZIEŃ (wygenerowany w sobotę):\\n${planData.current_plan}\\n\\nNapisz wiadomość niedzielną (maks 400 słów) zawierającą:\\n1. 📊 Podsumowanie tygodnia — kluczowe wzorce i spostrzeżenia\\n2. 🎯 Plan na nadchodzący tydzień (z weekly_plans)\\n\\nUżyj przyjaznego Markdown dla Telegram (*bold*, _italic_, emoji). Pisz w drugiej osobie. Bądź konkretny i motywujący.\\n\\nOdpowiedz TYLKO treścią wiadomości, bez dodatkowych komentarzy.`;\n\nreturn [{ json: { telegram_id: planData.telegram_id, full_prompt: fullPrompt } }];"
       }
     },
     {

@@ -45,7 +45,7 @@
       "position": [680, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const userId = $('Workflow Input').first().json.user_id;\nconst chatId = $('Workflow Input').first().json.chat_id;\nconst journals = $input.all()\n  .map(i => ({ text: i.json.text, created_at: i.json.created_at }))\n  .filter(j => j.text);\nreturn [{ json: { user_id: userId, chat_id: chatId, journals } }];"
+        "jsCode": "const userId = $('Workflow Input').first().json.user_id;\nconst chatId = $('Workflow Input').first().json.chat_id;\nconst journals = $input.all()\n  .map(i => ({ content: i.json.content, created_at: i.json.created_at }))\n  .filter(j => j.content);\nreturn [{ json: { user_id: userId, chat_id: chatId, journals } }];"
       }
     },
     {
@@ -122,7 +122,7 @@
       "position": [1640, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const prev = $('Collect Profile').first().json;\nconst amphitheater = $input.all()\n  .map(i => ({ text: i.json.text, metadata: i.json.metadata }))\n  .filter(i => i.text);\nreturn [{ json: { ...prev, amphitheater } }];"
+        "jsCode": "const prev = $('Collect Profile').first().json;\nconst amphitheater = $input.all()\n  .map(i => ({ content: i.json.content, metadata: i.json.metadata }))\n  .filter(i => i.content);\nreturn [{ json: { ...prev, amphitheater } }];"
       }
     },
     {
@@ -161,7 +161,7 @@
       "position": [2120, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const prev = $('Collect Amphitheater').first().json;\nconst condensations = $input.all()\n  .map(i => ({ text: i.json.text, created_at: i.json.created_at }))\n  .filter(i => i.text);\nreturn [{ json: { ...prev, condensations } }];"
+        "jsCode": "const prev = $('Collect Amphitheater').first().json;\nconst condensations = $input.all()\n  .map(i => ({ content: i.json.content, created_at: i.json.created_at }))\n  .filter(i => i.content);\nreturn [{ json: { ...prev, condensations } }];"
       }
     },
     {
@@ -200,7 +200,7 @@
       "position": [2600, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const prev = $('Collect Condensations').first().json;\nconst plans = $input.all()\n  .map(i => ({ text: i.json.text, created_at: i.json.created_at }))\n  .filter(i => i.text);\nconst exportObj = {\n  exported_at: new Date().toISOString(),\n  user_id: prev.user_id,\n  profile: prev.profile,\n  amphitheater: prev.amphitheater,\n  journal_entries: prev.journals,\n  weekly_condensations: prev.condensations,\n  weekly_plans: plans\n};\nconst jsonString = JSON.stringify(exportObj, null, 2);\nconst filename = `tech_diary_export_${new Date().toISOString().split('T')[0]}.json`;\nreturn [{ json: { chat_id: prev.chat_id, json_string: jsonString, filename } }];"
+        "jsCode": "const prev = $('Collect Condensations').first().json;\nconst plans = $input.all()\n  .map(i => ({ content: i.json.content, created_at: i.json.created_at }))\n  .filter(i => i.content);\nconst exportObj = {\n  exported_at: new Date().toISOString(),\n  user_id: prev.user_id,\n  profile: prev.profile,\n  amphitheater: prev.amphitheater,\n  journal_entries: prev.journals,\n  weekly_condensations: prev.condensations,\n  weekly_plans: plans\n};\nconst jsonString = JSON.stringify(exportObj, null, 2);\nconst filename = `tech_diary_export_${new Date().toISOString().split('T')[0]}.json`;\nreturn [{ json: { chat_id: prev.chat_id, json_string: jsonString, filename } }];"
       }
     },
     {

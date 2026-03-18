@@ -77,6 +77,32 @@
       }
     },
     {
+      "id": "tj-je-013",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [1400, 480],
+      "parameters": {
+        "dataType": "json",
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.pageContent }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "user_id",
+                "value": "={{ $json.metadata.user_id }}"
+              },
+              {
+                "name": "week_start",
+                "value": "={{ $json.metadata.week_start }}"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "id": "tj-je-006",
       "name": "Save Journal Entry",
       "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
@@ -183,6 +209,9 @@
     },
     "Prepare Journal Item": {
       "main": [[{ "node": "Save Journal Entry", "type": "main", "index": 0 }]]
+    },
+    "Default Data Loader": {
+      "ai_document": [[{ "node": "Save Journal Entry", "type": "ai_document", "index": 0 }]]
     },
     "OpenAI Embeddings": {
       "ai_embedding": [[{ "node": "Save Journal Entry", "type": "ai_embedding", "index": 0 }]]

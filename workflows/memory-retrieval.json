@@ -25,6 +25,7 @@
       "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
       "typeVersion": 1.3,
       "position": [680, 300],
+      "alwaysOutputData": true,
       "parameters": {
         "mode": "load",
         "tableName": {
@@ -85,6 +86,7 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [1160, 300],
+      "alwaysOutputData": true,
       "parameters": {
         "resource": "row",
         "operation": "getAll",
@@ -117,7 +119,7 @@
       "position": [1400, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const searchResults = $('Collect Search Results').first().json.search_results || [];\nconst ampItems = $input.all();\n\n// Tylko aktywne rekordy (superseded_at = null)\nconst activeAmp = ampItems.filter(item => !item.json.metadata?.superseded_at);\n\n// Kontekst z wyszukiwania semantycznego\nconst searchContext = searchResults\n  .map(r => r.text)\n  .filter(Boolean)\n  .join('\\n\\n');\n\n// Profil użytkownika z amfiteatru\nconst ampContext = activeAmp\n  .map(item => {\n    const cat = (item.json.metadata?.category || 'info').toUpperCase();\n    return `[${cat}] ${item.json.text}`;\n  })\n  .join('\\n\\n');\n\nconst context = [\n  ampContext ? `=== PROFIL UŻYTKOWNIKA ===\\n${ampContext}` : '',\n  searchContext ? `=== KONTEKST Z DZIENNIKA ===\\n${searchContext}` : ''\n].filter(Boolean).join('\\n\\n');\n\nreturn [{ json: { context } }];"
+        "jsCode": "const searchResults = $('Collect Search Results').first().json.search_results || [];\nconst ampItems = $input.all();\n\n// Tylko aktywne rekordy (superseded_at = null)\nconst activeAmp = ampItems.filter(item => !item.json.metadata?.superseded_at);\n\n// Kontekst z wyszukiwania semantycznego\nconst searchContext = searchResults\n  .map(r => r.text)\n  .filter(Boolean)\n  .join('\\n\\n');\n\n// Profil użytkownika z amfiteatru\nconst ampContext = activeAmp\n  .map(item => {\n    const cat = (item.json.metadata?.category || 'info').toUpperCase();\n    return `[${cat}] ${item.json.content}`;\n  })\n  .join('\\n\\n');\n\nconst context = [\n  ampContext ? `=== PROFIL UŻYTKOWNIKA ===\\n${ampContext}` : '',\n  searchContext ? `=== KONTEKST Z DZIENNIKA ===\\n${searchContext}` : ''\n].filter(Boolean).join('\\n\\n');\n\nreturn [{ json: { context } }];"
       }
     }
   ],
