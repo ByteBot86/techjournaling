@@ -287,6 +287,111 @@
           "ignoreTypeMismatch": false
         }
       }
+    },
+    {
+      "id": "tj-wp-021",
+      "name": "Build Tasks Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2840, 520],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const data = $('Parse Weekly').first().json;\nconst prompt = `Na podstawie kondensacji tygodnia i planu na przyszły tydzień wygeneruj listę konkretnych zadań do wykonania.\\n\\nKONDENSACJA TYGODNIA:\\n${data.weekly_condensation}\\n\\nPLAN NA PRZYSZŁY TYDZIEŃ:\\n${data.weekly_plan}\\n\\nWygeneruj 3-5 konkretnych, wykonalnych zadań na nadchodzący tydzień. Każde zadanie powinno być jasne i możliwe do wykonania w ciągu kilku godzin.\\n\\nOdpowiedz TYLKO JSON (bez markdown, bez komentarzy):\\n[\\n  {\"title\": \"...\", \"notes\": \"...\"},\\n  {\"title\": \"...\", \"notes\": \"\"}\\n]`;\nreturn [{ json: { user_id: data.user_id, full_prompt: prompt } }];"
+      }
+    },
+    {
+      "id": "tj-wp-022",
+      "name": "Claude Tasks",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [3080, 520],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.full_prompt }}"
+      }
+    },
+    {
+      "id": "tj-wp-023",
+      "name": "Anthropic Chat Model 2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [3080, 700],
+      "parameters": {
+        "model": { "mode": "id", "value": "claude-sonnet-4-6" }
+      },
+      "credentials": {
+        "anthropicApi": { "id": "", "name": "Anthropic Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-wp-024",
+      "name": "Parse Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3320, 520],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const userId = $('Build Tasks Prompt').first().json.user_id;\nconst response = $input.first().json.text || $input.first().json.output || '';\nconst cleaned = response.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\nlet tasks = [];\ntry {\n  tasks = JSON.parse(cleaned);\n} catch(e) {\n  const match = cleaned.match(/\\[[\\s\\S]*\\]/);\n  tasks = match ? JSON.parse(match[0]) : [];\n}\nif (!Array.isArray(tasks)) tasks = [];\ntasks = tasks.slice(0, 5);\nreturn tasks.map(t => ({ json: { user_id: userId, title: t.title || '', notes: t.notes || '' } }));"
+      }
+    },
+    {
+      "id": "tj-wp-025",
+      "name": "Create Google Task",
+      "type": "n8n-nodes-base.googleTasks",
+      "typeVersion": 1,
+      "position": [3560, 520],
+      "parameters": {
+        "resource": "task",
+        "operation": "create",
+        "task": "={{ '@default' }}",
+        "title": "={{ $json.title }}",
+        "additionalFields": {
+          "notes": "={{ $json.notes }}"
+        }
+      },
+      "credentials": {
+        "googleTasksOAuth2Api": { "id": "", "name": "Google Tasks Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-wp-dl-001",
+      "name": "Data Loader Condensation",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [2960, 480],
+      "parameters": {
+        "dataType": "json",
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.pageContent }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              { "name": "user_id", "value": "={{ $json.metadata.user_id }}" },
+              { "name": "week_start", "value": "={{ $json.metadata.week_start }}" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "tj-wp-dl-002",
+      "name": "Data Loader Plan",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [3440, 480],
+      "parameters": {
+        "dataType": "json",
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.pageContent }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              { "name": "user_id", "value": "={{ $json.metadata.user_id }}" },
+              { "name": "week_start", "value": "={{ $json.metadata.week_start }}" }
+            ]
+          }
+        }
+      }
     }
   ],
   "connections": {
@@ -327,7 +432,22 @@
       "main": [[{ "node": "Parse Weekly", "type": "main", "index": 0 }]]
     },
     "Parse Weekly": {
-      "main": [[{ "node": "Prepare Condensation", "type": "main", "index": 0 }]]
+      "main": [[
+        { "node": "Prepare Condensation", "type": "main", "index": 0 },
+        { "node": "Build Tasks Prompt", "type": "main", "index": 0 }
+      ]]
+    },
+    "Build Tasks Prompt": {
+      "main": [[{ "node": "Claude Tasks", "type": "main", "index": 0 }]]
+    },
+    "Anthropic Chat Model 2": {
+      "ai_languageModel": [[{ "node": "Claude Tasks", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Claude Tasks": {
+      "main": [[{ "node": "Parse Tasks", "type": "main", "index": 0 }]]
+    },
+    "Parse Tasks": {
+      "main": [[{ "node": "Create Google Task", "type": "main", "index": 0 }]]
     },
     "Prepare Condensation": {
       "main": [[{ "node": "Save Weekly Condensation", "type": "main", "index": 0 }]]
@@ -352,6 +472,12 @@
     },
     "Update Amphitheater": {
       "main": [[{ "node": "SplitInBatches", "type": "main", "index": 0 }]]
+    },
+    "Data Loader Condensation": {
+      "ai_document": [[{ "node": "Save Weekly Condensation", "type": "ai_document", "index": 0 }]]
+    },
+    "Data Loader Plan": {
+      "ai_document": [[{ "node": "Save Weekly Plan", "type": "ai_document", "index": 0 }]]
     }
   },
   "settings": {
