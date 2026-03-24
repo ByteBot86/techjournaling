@@ -26,7 +26,7 @@
         "returnAll": true
       },
       "credentials": {
-        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+        "supabaseApi": { "id": "394dwMdNdGqslv7H", "name": "Supabase account" }
       }
     },
     {
@@ -67,7 +67,7 @@
         }
       },
       "credentials": {
-        "googleTasksOAuth2Api": { "id": "", "name": "Google Tasks Tech Diary" }
+        "googleTasksOAuth2Api": { "id": "googleTasksTechDiary", "name": "Google Tasks Tech Diary" }
       }
     },
     {
@@ -101,7 +101,7 @@
         }
       },
       "credentials": {
-        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+        "supabaseApi": { "id": "394dwMdNdGqslv7H", "name": "Supabase account" }
       }
     },
     {
@@ -134,7 +134,7 @@
         }
       },
       "credentials": {
-        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+        "supabaseApi": { "id": "394dwMdNdGqslv7H", "name": "Supabase account" }
       }
     },
     {
@@ -194,7 +194,7 @@
         }
       },
       "credentials": {
-        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+        "supabaseApi": { "id": "394dwMdNdGqslv7H", "name": "Supabase account" }
       }
     },
     {
@@ -229,7 +229,7 @@
         "model": { "mode": "id", "value": "claude-sonnet-4-6" }
       },
       "credentials": {
-        "anthropicApi": { "id": "", "name": "Anthropic Tech Diary" }
+        "anthropicApi": { "id": "rChZltTr5OEPo5JD", "name": "Anthropic account" }
       }
     },
     {
@@ -264,7 +264,7 @@
         "tableName": { "mode": "id", "value": "weekly_condensations" }
       },
       "credentials": {
-        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+        "supabaseApi": { "id": "394dwMdNdGqslv7H", "name": "Supabase account" }
       }
     },
     {
@@ -275,7 +275,7 @@
       "position": [3320, 480],
       "parameters": { "model": "text-embedding-3-small" },
       "credentials": {
-        "openAiApi": { "id": "", "name": "OpenAI Tech Diary" }
+        "openAiApi": { "id": "kkj14qnD4cBwY9wg", "name": "OpenAi account" }
       }
     },
     {
@@ -299,7 +299,7 @@
         "tableName": { "mode": "id", "value": "weekly_plans" }
       },
       "credentials": {
-        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+        "supabaseApi": { "id": "394dwMdNdGqslv7H", "name": "Supabase account" }
       }
     },
     {
@@ -310,7 +310,7 @@
       "position": [3800, 480],
       "parameters": { "model": "text-embedding-3-small" },
       "credentials": {
-        "openAiApi": { "id": "", "name": "OpenAI Tech Diary" }
+        "openAiApi": { "id": "kkj14qnD4cBwY9wg", "name": "OpenAi account" }
       }
     },
     {
@@ -374,7 +374,7 @@
         "model": { "mode": "id", "value": "claude-sonnet-4-6" }
       },
       "credentials": {
-        "anthropicApi": { "id": "", "name": "Anthropic Tech Diary" }
+        "anthropicApi": { "id": "rChZltTr5OEPo5JD", "name": "Anthropic account" }
       }
     },
     {
@@ -404,7 +404,7 @@
         }
       },
       "credentials": {
-        "googleTasksOAuth2Api": { "id": "", "name": "Google Tasks Tech Diary" }
+        "googleTasksOAuth2Api": { "id": "googleTasksTechDiary", "name": "Google Tasks Tech Diary" }
       }
     },
     {
