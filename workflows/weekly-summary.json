@@ -51,6 +51,39 @@
       }
     },
     {
+      "id": "tj-ws-015",
+      "name": "Get Task Completions",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1168, 520],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "task_completions",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Set User').first().json.user_id }}"
+            },
+            {
+              "keyName": "created_at",
+              "condition": "gte",
+              "keyValue": "={{ new Date(Date.now() - 7*24*60*60*1000).toISOString() }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "394dwMdNdGqslv7H", "name": "Supabase account" }
+      }
+    },
+    {
       "id": "tj-ws-005",
       "name": "Get Weekly Condensation",
       "type": "n8n-nodes-base.supabase",
@@ -174,7 +207,7 @@
       "position": [2360, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const planData = $('Collect Plan').first().json;\nconst ampItems = $input.all();\nconst activeAmp = ampItems.filter(item => !item.json.metadata?.superseded_at);\nconst ampContext = activeAmp\n  .map(item => `[${(item.json.metadata?.category || 'info').toUpperCase()}] ${item.json.content}`)\n  .join('\\n\\n') || '(brak profilu)';\n\nconst fullPrompt = `Generujesz niedzielną wiadomość podsumowującą tydzień dla użytkownika.\\n\\nPROFIL UŻYTKOWNIKA:\\n${ampContext}\\n\\nKONDENSACJA MINIONEGO TYGODNIA:\\n${planData.latest_condensation}\\n\\nPLAN NA NADCHODZĄCY TYDZIEŃ (wygenerowany w sobotę):\\n${planData.current_plan}\\n\\nNapisz wiadomość niedzielną (maks 400 słów) zawierającą:\\n1. 📊 Podsumowanie tygodnia — kluczowe wzorce i spostrzeżenia\\n2. 🎯 Plan na nadchodzący tydzień (z weekly_plans)\\n\\nUżyj przyjaznego Markdown dla Telegram (*bold*, _italic_, emoji). Pisz w drugiej osobie. Bądź konkretny i motywujący.\\n\\nNa końcu wiadomości ZAWSZE dodaj ten akapit dosłownie:\\n📋 Twoje zadania na ten tydzień zostały dodane do Google Tasks. Pamiętaj, żeby zaplanować je w kalendarzu!\\n\\nOdpowiedz TYLKO treścią wiadomości, bez dodatkowych komentarzy.`;\n\nreturn [{ json: { telegram_id: planData.telegram_id, full_prompt: fullPrompt } }];"
+        "jsCode": "const planData = $('Collect Plan').first().json;\nconst ampItems = $input.all();\nconst activeAmp = ampItems.filter(item => !item.json.metadata?.superseded_at);\nconst ampContext = activeAmp\n  .map(item => `[${(item.json.metadata?.category || 'info').toUpperCase()}] ${item.json.content}`)\n  .join('\\n\\n') || '(brak profilu)';\n\n// Pobierz dane realizacji zadań\nconst taskCompletions = $('Get Task Completions').all();\nlet completedList = '(brak danych)';\nlet incompleteList = '(brak niewykonanych)';\nif (taskCompletions.length > 0 && taskCompletions[0].json.completed) {\n  const comp = JSON.parse(taskCompletions[0].json.completed || '[]');\n  const incomp = JSON.parse(taskCompletions[0].json.incomplete || '[]');\n  completedList = comp.length > 0 ? comp.map(t => `✅ ${t}`).join('\\n') : '(wszystko wykonane lub brak tasków)';\n  incompleteList = incomp.length > 0 ? incomp.map(t => `❌ ${t}`).join('\\n') : '(wszystko wykonane)';\n}\n\nconst fullPrompt = `Generujesz niedzielną wiadomość podsumowującą tydzień dla użytkownika.\\n\\nPROFIL UŻYTKOWNIKA:\\n${ampContext}\\n\\nKONDENSACJA MINIONEGO TYGODNIA:\\n${planData.latest_condensation}\\n\\nPLAN NA NADCHODZĄCY TYDZIEŃ (wygenerowany w sobotę):\\n${planData.current_plan}\\n\\nREALIZACJA ZADAŃ Z MINIONEGO TYGODNIA:\\n${completedList}\\n${incompleteList}\\n\\nNapisz wiadomość niedzielną (maks 400 słów) zawierającą:\\n1. 📊 Podsumowanie tygodnia — kluczowe wzorce i spostrzeżenia\\n2. ✅ Realizacja zadań — co udało się zrobić, co nie\\n3. 🎯 Plan na nadchodzący tydzień (z weekly_plans)\\n\\nUżyj przyjaznego Markdown dla Telegram (*bold*, _italic_, emoji). Pisz w drugiej osobie. Bądź konkretny i motywujący.\\n\\nNa końcu wiadomości ZAWSZE dodaj ten akapit dosłownie:\\n📋 Twoje zadania na ten tydzień zostały dodane do Google Tasks. Pamiętaj, żeby zaplanować je w kalendarzu!\\n\\nOdpowiedz TYLKO treścią wiadomości, bez dodatkowych komentarzy.`;\n\nreturn [{ json: { telegram_id: planData.telegram_id, full_prompt: fullPrompt } }];"
       }
     },
     {
@@ -242,6 +275,9 @@
       "main": [[{ "node": "Set User", "type": "main", "index": 0 }]]
     },
     "Set User": {
+      "main": [[{ "node": "Get Task Completions", "type": "main", "index": 0 }]]
+    },
+    "Get Task Completions": {
       "main": [[{ "node": "Get Weekly Condensation", "type": "main", "index": 0 }]]
     },
     "Get Weekly Condensation": {
