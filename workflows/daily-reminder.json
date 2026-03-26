@@ -70,7 +70,7 @@
       "typeVersion": 2,
       "position": [920, 300],
       "parameters": {
-        "jsCode": "const user = $input.first().json;\nconst profile = $('Get Profiles').item.json;\n\nif (!user.telegram_id) return [];\n\nconst valuesRaw = profile.values_raw || '';\nconst valuesLine = valuesRaw ? `\\n\\n💡 Twoje wartości: ${valuesRaw}` : '';\n\nconst message = `📝 Czas na dzienny wpis w Tech Diary!\\n\\nJak minął Ci dzisiaj dzień w pracy? Co wydarzyło się w kontekście Twoich celów?${valuesLine}\\n\\nNapisz mi — zadam Ci pytanie, które pomoże Ci to przemyśleć głębiej.`;\n\nreturn [{ json: { chat_id: user.telegram_id, message } }];"
+        "jsCode": "const user = $input.first().json;\nconst profile = $('Get Profiles').item.json;\n\nif (!user.telegram_id) return [];\n\n// Pomiń gdy aktywny tryb miesięczny\nconst rawFlag = user.pending_monthly_context;\nlet flag = null;\ntry {\n  flag = rawFlag ? (typeof rawFlag === 'string' ? JSON.parse(rawFlag) : rawFlag) : null;\n} catch { flag = null; }\nif (flag && new Date(flag.expires_at) > new Date()) return [];\n\nconst valuesRaw = profile.values_raw || '';\nconst valuesLine = valuesRaw ? `\\n\\n💡 Twoje wartości: ${valuesRaw}` : '';\n\nconst message = `📝 Czas na dzienny wpis w Tech Diary!\\n\\nJak minął Ci dzisiaj dzień w pracy? Co wydarzyło się w kontekście Twoich celów?${valuesLine}\\n\\nNapisz mi — zadam Ci pytanie, które pomoże Ci to przemyśleć głębiej.`;\n\nreturn [{ json: { chat_id: user.telegram_id, message } }];"
       }
     },
     {
