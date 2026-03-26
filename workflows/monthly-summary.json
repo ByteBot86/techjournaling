@@ -1,0 +1,413 @@
+{
+  "name": "[TJ] monthly-summary",
+  "nodes": [
+    {
+      "id": "tj-ms-001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 15 1 * *" }]
+        }
+      }
+    },
+    {
+      "id": "tj-ms-002",
+      "name": "Get All Users",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [440, 300],
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": true
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ms-003",
+      "name": "SplitInBatches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [680, 300],
+      "parameters": { "batchSize": 1, "options": {} }
+    },
+    {
+      "id": "tj-ms-004",
+      "name": "Set User",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300],
+      "parameters": {
+        "jsCode": "return [{ json: { user_id: $json.id, telegram_id: $json.telegram_id } }];"
+      }
+    },
+    {
+      "id": "tj-ms-005",
+      "name": "Get Weekly Condensations",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1160, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "weekly_condensations",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Set User').first().json.user_id }}"
+            },
+            {
+              "keyName": "created_at",
+              "condition": "gte",
+              "keyValue": "={{ new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString() }}"
+            },
+            {
+              "keyName": "created_at",
+              "condition": "lt",
+              "keyValue": "={{ new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString() }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ms-006",
+      "name": "Get Task Completions",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1400, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "task_completions",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Set User').first().json.user_id }}"
+            },
+            {
+              "keyName": "week_start",
+              "condition": "gte",
+              "keyValue": "={{ new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().split('T')[0] }}"
+            },
+            {
+              "keyName": "week_start",
+              "condition": "lt",
+              "keyValue": "={{ new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0] }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ms-007",
+      "name": "Get Amphitheater",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1640, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "amphitheater",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Set User').first().json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ms-008",
+      "name": "Collect Monthly Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const userId = $('Set User').first().json.user_id;\nconst telegramId = $('Set User').first().json.telegram_id;\n\n// Poprzedni miesiąc\nconst now = new Date();\nconst prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);\nconst monthStr = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;\nconst monthName = prevMonth.toLocaleString('pl-PL', { month: 'long', year: 'numeric' });\n\n// Kondensacje tygodniowe\nconst condensations = $('Get Weekly Condensations').all()\n  .filter(i => i.json.content)\n  .sort((a, b) => new Date(a.json.created_at) - new Date(b.json.created_at));\nconst condensationsText = condensations.length > 0\n  ? condensations.map((i, idx) => `Tydzień ${idx + 1}:\\n${i.json.content}`).join('\\n\\n---\\n\\n')\n  : '(brak kondensacji tygodniowych za ten miesiąc)';\n\n// Zadania\nconst taskItems = $('Get Task Completions').all();\nconst allCompleted = taskItems.flatMap(i => {\n  try { return JSON.parse(i.json.completed || '[]'); } catch { return []; }\n});\nconst allIncomplete = taskItems.flatMap(i => {\n  try { return JSON.parse(i.json.incomplete || '[]'); } catch { return []; }\n});\nconst uniqueCompleted = [...new Set(allCompleted)];\nconst uniqueIncomplete = [...new Set(allIncomplete)];\n\n// Amfiteatr — aktywne wpisy\nconst ampItems = $input.all();\nconst activeAmp = ampItems.filter(item => !item.json.metadata?.superseded_at);\nconst ampContext = activeAmp\n  .map(item => `[${(item.json.metadata?.category || 'info').toUpperCase()}] ${item.json.content}`)\n  .join('\\n\\n') || '(brak profilu)';\nconst goalEntry = activeAmp.find(item => item.json.metadata?.category === 'goal');\nconst userGoal = goalEntry?.json?.content || '(brak zdefiniowanego celu)';\n\nreturn [{ json: {\n  user_id: userId,\n  telegram_id: telegramId,\n  month: monthStr,\n  month_name: monthName,\n  condensations_text: condensationsText,\n  completed_tasks: uniqueCompleted,\n  incomplete_tasks: uniqueIncomplete,\n  amp_context: ampContext,\n  user_goal: userGoal\n} }];"
+      }
+    },
+    {
+      "id": "tj-ms-009",
+      "name": "Build Monthly Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2120, 300],
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\n\nconst completedList = d.completed_tasks.length > 0\n  ? d.completed_tasks.map(t => `✅ ${t}`).join('\\n')\n  : '(brak wykonanych zadań)';\nconst incompleteList = d.incomplete_tasks.length > 0\n  ? d.incomplete_tasks.map(t => `❌ ${t}`).join('\\n')\n  : '(wszystkie zadania wykonane lub brak danych)';\n\nconst prompt = `Generujesz miesięczne podsumowanie dla użytkownika za ${d.month_name}. Wiadomość wysyłasz 1. dnia nowego miesiąca o 15:00.\\n\\nPROFIL UŻYTKOWNIKA:\\n${d.amp_context}\\n\\nCEL UŻYTKOWNIKA:\\n${d.user_goal}\\n\\nKONDENSACJE TYGODNIOWE Z MINIONEGO MIESIĄCA:\\n${d.condensations_text}\\n\\nREALIZACJA ZADAŃ W MINIONYM MIESIĄCU:\\n${completedList}\\n${incompleteList}\\n\\nNapisz miesięczne podsumowanie w następującym formacie (jedna wiadomość, Markdown dla Telegram):\\n\\n📅 *PRZEGLĄD MIESIĄCA — ${d.month_name.toUpperCase()}*\\n\\n🎯 *Twój cel:* [cel użytkownika — jedno zdanie]\\n\\n📊 *ANALITYK — Wzorce miesiąca*\\n[2-4 konkretne obserwacje: jakie tematy dominowały, jak szły zadania, co się powtarzało]\\n\\n🧠 *COACH CBT — Myślenie i blokady*\\n[2-3 obserwacje: jakie przekonania i myśli pojawiały się w wpisach, co mogło blokować, czy wzorce się powtarzają]\\n\\n⚡ *TRENER MENTALNY — Energia i motywacja*\\n[2-3 obserwacje: kiedy energia była wysoka lub niska, co dawało napęd, co drenowało]\\n\\n🗺️ *STRATEG — Trajektoria celu*\\n[2-3 obserwacje: jak miniony miesiąc przybliżył do celu, co wymaga korekty kursu na następny miesiąc]\\n\\n💬 *Pytanie do refleksji:*\\n[Jedno precyzyjne, konkretne pytanie które łączy obserwacje wszystkich czterech perspektyw]\\n\\nPisz w drugiej osobie, konkretnie, bez owijania w bawełnę. Bądź jak dobry coach — bezpośredni i wspierający. Odpowiedz TYLKO treścią wiadomości.`;\n\nreturn [{ json: { user_id: d.user_id, telegram_id: d.telegram_id, month: d.month, full_prompt: prompt } }];"
+      }
+    },
+    {
+      "id": "tj-ms-010",
+      "name": "Claude Monthly",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [2360, 300],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.full_prompt }}"
+      }
+    },
+    {
+      "id": "tj-ms-011",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [2360, 480],
+      "parameters": {
+        "model": { "mode": "id", "value": "claude-sonnet-4-6" }
+      },
+      "credentials": {
+        "anthropicApi": { "id": "", "name": "Anthropic Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ms-012",
+      "name": "Extract Monthly Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2600, 300],
+      "parameters": {
+        "jsCode": "const response = $input.first().json.text || $input.first().json.output || '';\nconst data = $('Build Monthly Prompt').first().json;\nreturn [{ json: {\n  user_id: data.user_id,\n  telegram_id: data.telegram_id,\n  month: data.month,\n  message: response\n} }];"
+      }
+    },
+    {
+      "id": "tj-ms-013",
+      "name": "Prepare Monthly Condensation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2840, 300],
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nreturn [{ json: {\n  pageContent: d.message,\n  metadata: {\n    user_id: d.user_id,\n    month: d.month\n  }\n} }];"
+      }
+    },
+    {
+      "id": "tj-ms-014",
+      "name": "Save Monthly Condensation",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [3080, 300],
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "mode": "id",
+          "value": "monthly_condensations"
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ms-015",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [3080, 480],
+      "parameters": {
+        "dataType": "json",
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.pageContent }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              { "name": "user_id", "value": "={{ $json.metadata.user_id }}" },
+              { "name": "month", "value": "={{ $json.metadata.month }}" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "tj-ms-016",
+      "name": "OpenAI Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1,
+      "position": [3080, 660],
+      "parameters": {
+        "model": "text-embedding-3-small"
+      },
+      "credentials": {
+        "openAiApi": { "id": "", "name": "OpenAI Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ms-017",
+      "name": "Amphitheater Update",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [3320, 300],
+      "parameters": {
+        "source": "database",
+        "workflowId": "rUuhiK2xClpGJJad",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "={{ $('Extract Monthly Response').first().json.user_id }}",
+            "weekly_condensation_text": "={{ $('Extract Monthly Response').first().json.message }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "tj-ms-018",
+      "name": "Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3560, 300],
+      "parameters": {
+        "jsCode": "return [$input.first()];"
+      }
+    },
+    {
+      "id": "tj-ms-019",
+      "name": "Set Monthly Flag",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [3800, 300],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "tableId": "users",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Set User').first().json.user_id }}"
+            }
+          ]
+        },
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "pending_monthly_context",
+              "fieldValue": "={{ JSON.stringify({ month: $('Extract Monthly Response').first().json.month, expires_at: new Date(new Date().setHours(23, 59, 59, 999)).toISOString() }) }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
+      "id": "tj-ms-020",
+      "name": "Send Monthly Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [4040, 300],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Extract Monthly Response').first().json.telegram_id }}",
+        "text": "={{ $('Extract Monthly Response').first().json.message }}",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "credentials": {
+        "telegramApi": { "id": "", "name": "Telegram Tech Diary" }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Get All Users", "type": "main", "index": 0 }]]
+    },
+    "Get All Users": {
+      "main": [[{ "node": "SplitInBatches", "type": "main", "index": 0 }]]
+    },
+    "SplitInBatches": {
+      "main": [[{ "node": "Set User", "type": "main", "index": 0 }]]
+    },
+    "Set User": {
+      "main": [[{ "node": "Get Weekly Condensations", "type": "main", "index": 0 }]]
+    },
+    "Get Weekly Condensations": {
+      "main": [[{ "node": "Get Task Completions", "type": "main", "index": 0 }]]
+    },
+    "Get Task Completions": {
+      "main": [[{ "node": "Get Amphitheater", "type": "main", "index": 0 }]]
+    },
+    "Get Amphitheater": {
+      "main": [[{ "node": "Collect Monthly Data", "type": "main", "index": 0 }]]
+    },
+    "Collect Monthly Data": {
+      "main": [[{ "node": "Build Monthly Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build Monthly Prompt": {
+      "main": [[{ "node": "Claude Monthly", "type": "main", "index": 0 }]]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [[{ "node": "Claude Monthly", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Claude Monthly": {
+      "main": [[{ "node": "Extract Monthly Response", "type": "main", "index": 0 }]]
+    },
+    "Extract Monthly Response": {
+      "main": [[{ "node": "Prepare Monthly Condensation", "type": "main", "index": 0 }]]
+    },
+    "Prepare Monthly Condensation": {
+      "main": [[{ "node": "Save Monthly Condensation", "type": "main", "index": 0 }]]
+    },
+    "Default Data Loader": {
+      "ai_document": [[{ "node": "Save Monthly Condensation", "type": "ai_document", "index": 0 }]]
+    },
+    "OpenAI Embeddings": {
+      "ai_embedding": [[{ "node": "Save Monthly Condensation", "type": "ai_embedding", "index": 0 }]]
+    },
+    "Save Monthly Condensation": {
+      "main": [[{ "node": "Amphitheater Update", "type": "main", "index": 0 }]]
+    },
+    "Amphitheater Update": {
+      "main": [[{ "node": "Normalize", "type": "main", "index": 0 }]]
+    },
+    "Normalize": {
+      "main": [[{ "node": "Set Monthly Flag", "type": "main", "index": 0 }]]
+    },
+    "Set Monthly Flag": {
+      "main": [[{ "node": "Send Monthly Message", "type": "main", "index": 0 }]]
+    },
+    "Send Monthly Message": {
+      "main": [[{ "node": "SplitInBatches", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}
