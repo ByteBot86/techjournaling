@@ -38,11 +38,39 @@
       }
     },
     {
+      "id": "tj-je-014",
+      "name": "Get User Flag",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Workflow Input').first().json.user_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
       "id": "tj-je-003",
       "name": "Prepare Memory Query",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 300],
+      "position": [920, 300],
       "parameters": {
         "jsCode": "const input = $('Workflow Input').first().json;\nreturn [{\n  json: {\n    user_id: input.user_id,\n    context_type: 'daily',\n    query_text: input.message_text\n  }\n}];"
       }
@@ -52,7 +80,7 @@
       "name": "Call Memory Retrieval",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
-      "position": [920, 300],
+      "position": [1160, 300],
       "parameters": {
         "source": "database",
         "workflowId": "dvYPWkdlYGDSlFh2",
@@ -71,7 +99,7 @@
       "name": "Prepare Journal Item",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1160, 300],
+      "position": [1400, 300],
       "parameters": {
         "jsCode": "const input = $('Workflow Input').first().json;\nconst now = new Date();\nconst weekStart = new Date(now);\nweekStart.setDate(now.getDate() - now.getDay() + 1);\nweekStart.setHours(0, 0, 0, 0);\nreturn [{\n  json: {\n    pageContent: input.message_text,\n    metadata: {\n      user_id: input.user_id,\n      week_start: weekStart.toISOString().split('T')[0]\n    }\n  }\n}];"
       }
@@ -81,7 +109,7 @@
       "name": "Default Data Loader",
       "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
       "typeVersion": 1.1,
-      "position": [1400, 480],
+      "position": [1640, 480],
       "parameters": {
         "dataType": "json",
         "jsonMode": "expressionData",
@@ -107,7 +135,7 @@
       "name": "Save Journal Entry",
       "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
       "typeVersion": 1.3,
-      "position": [1400, 300],
+      "position": [1640, 300],
       "parameters": {
         "mode": "insert",
         "tableName": {
@@ -124,7 +152,7 @@
       "name": "OpenAI Embeddings",
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
       "typeVersion": 1,
-      "position": [1400, 480],
+      "position": [1640, 480],
       "parameters": {
         "model": "text-embedding-3-small"
       },
@@ -133,14 +161,47 @@
       }
     },
     {
+      "id": "tj-je-015",
+      "name": "Get Monthly Condensation",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1880, 480],
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "monthly_condensations",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Workflow Input').first().json.user_id }}"
+            },
+            {
+              "keyName": "metadata->>month",
+              "condition": "eq",
+              "keyValue": "={{ (() => { try { const f = $('Get User Flag').first().json.pending_monthly_context; const parsed = typeof f === 'string' ? JSON.parse(f) : f; return parsed?.month || ''; } catch { return ''; } })() }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": { "id": "", "name": "Supabase Tech Diary" }
+      }
+    },
+    {
       "id": "tj-je-008",
       "name": "Build Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1640, 300],
+      "position": [1880, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const input = $('Workflow Input').first().json;\nconst profileItem = $('Get Profile').first().json;\nconst memoryResult = $('Call Memory Retrieval').first().json;\n\nconst valuesRaw = profileItem.values_raw || '(nie określone)';\nconst gender = profileItem.gender || '(nie podano)';\nconst context = memoryResult.context || '(brak kontekstu z dziennika)';\n\nconst fullPrompt = `Jesteś AI coachem kariery dla osoby technicznej. Twoja rola to pogłębianie refleksji — nie dawanie gotowych odpowiedzi ani rad.\\n\\nPROFIL UŻYTKOWNIKA:\\nPłeć: ${gender}\\nWartości: ${valuesRaw}\\n\\nKONTEKST Z DZIENNIKA:\\n${context}\\n\\nWPIS UŻYTKOWNIKA:\\n${input.message_text}\\n\\nNa podstawie wpisu wybierz JEDNĄ personę i zadaj JEDNO precyzyjne pytanie pogłębiające:\\n- Strateg (kariera, decyzje strategiczne)\\n- Coach CBT (emocje, przekonania, blokady)\\n- Trener mentalny (motywacja, energia, nawyki)\\n- Analityk (procesy, wzorce zachowań)\\n\\nNie dawaj odpowiedzi. Nie dawaj rad. Tylko jedno pytanie.\\n\\nFormat:\\nPERSONA: [nazwa]\\nPYTANIE: [treść pytania]`;\n\nreturn [{ json: { full_prompt: fullPrompt } }];"
+        "jsCode": "const input = $('Workflow Input').first().json;\nconst profileItem = $('Get Profile').first().json;\n\n// Sprawdź flagę trybu miesięcznego\nconst userRow = $('Get User Flag').first().json;\nconst rawFlag = userRow.pending_monthly_context;\nlet flag = null;\ntry {\n  flag = rawFlag ? (typeof rawFlag === 'string' ? JSON.parse(rawFlag) : rawFlag) : null;\n} catch { flag = null; }\nconst isMonthly = flag && new Date(flag.expires_at) > new Date();\n\nconst valuesRaw = profileItem.values_raw || '(nie określone)';\nconst gender = profileItem.gender || '(nie podano)';\n\nlet fullPrompt;\n\nif (isMonthly) {\n  const monthlyItems = $('Get Monthly Condensation').all();\n  const monthlySummary = monthlyItems.length > 0 && monthlyItems[0].json.content\n    ? monthlyItems[0].json.content\n    : '(brak podsumowania miesięcznego)';\n\n  fullPrompt = `Jesteś AI coachem kariery. Użytkownik właśnie odczytał swoje miesięczne podsumowanie i pisze refleksję.\\n\\nPROFIL:\\nPłeć: ${gender}\\nWartości: ${valuesRaw}\\n\\nMIESIĘCZNE PODSUMOWANIE (kontekst):\\n${monthlySummary}\\n\\nWPIS UŻYTKOWNIKA (odpowiedź na miesięczne podsumowanie):\\n${input.message_text}\\n\\nNa podstawie wpisu wybierz JEDNĄ personę i zadaj JEDNO precyzyjne pytanie pogłębiające w kontekście miesięcznej refleksji:\\n- Strateg (kierunek, cel)\\n- Coach CBT (przekonania, blokady)\\n- Trener mentalny (energia, motywacja)\\n- Analityk (wzorce, nawyki)\\n\\nNie dawaj odpowiedzi. Nie dawaj rad. Tylko jedno pytanie.\\n\\nFormat:\\nPERSONA: [nazwa]\\nPYTANIE: [treść pytania]`;\n} else {\n  const memoryResult = $('Call Memory Retrieval').first().json;\n  const context = memoryResult.context || '(brak kontekstu z dziennika)';\n\n  fullPrompt = `Jesteś AI coachem kariery dla osoby technicznej. Twoja rola to pogłębianie refleksji — nie dawanie gotowych odpowiedzi ani rad.\\n\\nPROFIL UŻYTKOWNIKA:\\nPłeć: ${gender}\\nWartości: ${valuesRaw}\\n\\nKONTEKST Z DZIENNIKA:\\n${context}\\n\\nWPIS UŻYTKOWNIKA:\\n${input.message_text}\\n\\nNa podstawie wpisu wybierz JEDNĄ personę i zadaj JEDNO precyzyjne pytanie pogłębiające:\\n- Strateg (kariera, decyzje strategiczne)\\n- Coach CBT (emocje, przekonania, blokady)\\n- Trener mentalny (motywacja, energia, nawyki)\\n- Analityk (procesy, wzorce zachowań)\\n\\nNie dawaj odpowiedzi. Nie dawaj rad. Tylko jedno pytanie.\\n\\nFormat:\\nPERSONA: [nazwa]\\nPYTANIE: [treść pytania]`;\n}\n\nreturn [{ json: { full_prompt: fullPrompt } }];"
       }
     },
     {
@@ -148,7 +209,7 @@
       "name": "Claude Coach",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
-      "position": [1880, 300],
+      "position": [2120, 300],
       "parameters": {
         "promptType": "define",
         "text": "={{ $json.full_prompt }}"
@@ -159,7 +220,7 @@
       "name": "Anthropic Chat Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.3,
-      "position": [1880, 480],
+      "position": [2120, 480],
       "parameters": {
         "model": { "mode": "id", "value": "claude-sonnet-4-6" }
       },
@@ -172,7 +233,7 @@
       "name": "Extract Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2120, 300],
+      "position": [2360, 300],
       "parameters": {
         "jsCode": "const response = $input.first().json.text || $input.first().json.output || '';\nconst chatId = $('Workflow Input').first().json.chat_id;\n\nlet question = response;\nconst pytanieMatch = response.match(/PYTANIE:\\s*([\\s\\S]+)/i);\nif (pytanieMatch) question = pytanieMatch[1].trim();\n\nreturn [{ json: { chat_id: chatId, question } }];"
       }
@@ -182,7 +243,7 @@
       "name": "Send Response",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2360, 300],
+      "position": [2600, 300],
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
@@ -199,6 +260,9 @@
       "main": [[{ "node": "Get Profile", "type": "main", "index": 0 }]]
     },
     "Get Profile": {
+      "main": [[{ "node": "Get User Flag", "type": "main", "index": 0 }]]
+    },
+    "Get User Flag": {
       "main": [[{ "node": "Prepare Memory Query", "type": "main", "index": 0 }]]
     },
     "Prepare Memory Query": {
@@ -217,6 +281,9 @@
       "ai_embedding": [[{ "node": "Save Journal Entry", "type": "ai_embedding", "index": 0 }]]
     },
     "Save Journal Entry": {
+      "main": [[{ "node": "Get Monthly Condensation", "type": "main", "index": 0 }]]
+    },
+    "Get Monthly Condensation": {
       "main": [[{ "node": "Build Prompt", "type": "main", "index": 0 }]]
     },
     "Build Prompt": {
