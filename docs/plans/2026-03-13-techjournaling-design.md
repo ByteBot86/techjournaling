@@ -6,6 +6,7 @@
 
 ---
 
+
 ## Overview
 
 Aplikacja do rozwoju kariery dla osoby z technicznym wykształceniem. Codzienny dziennik wspierany przez AI, który pełni rolę coacha kariery — nie podaje gotowych odpowiedzi, lecz pogłębia refleksję użytkownika poprzez pytania. Backend w n8n, wzorzec RAG, baza danych Supabase.
