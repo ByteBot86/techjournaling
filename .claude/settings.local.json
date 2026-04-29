@@ -10,7 +10,20 @@
       "mcp__supabase__execute_sql",
       "mcp__supabase__get_project_url",
       "mcp__n8n-mcp__n8n_create_workflow",
-      "mcp__n8n-mcp__search_nodes"
+      "mcp__n8n-mcp__search_nodes",
+      "Bash(python3:*)",
+      "Skill(update-config)",
+      "Bash(cmd /c \"npx -y n8n-mcp --scope local --help 2>&1 | head -20\")",
+      "Bash(cmd /c \"npx n8n-mcp --version 2>&1\")",
+      "Bash(cmd /c npx n8n-mcp --version)",
+      "Bash(where npx:*)",
+      "Bash(npx --version)",
+      "Bash(npm --version)",
+      "Bash(cmd /c \"node --version && npm --version && where npx\")",
+      "Bash(cmd /c \"node --version\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
